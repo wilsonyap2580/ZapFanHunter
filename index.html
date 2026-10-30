@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ZapFan Hunter</title>
+<style>
+:root{--bg:#FFF6E5;--ink:#3B2314;--card:#FFFCF5;--mute:#8A6A4F;--pink:#8B4A2B;--orange:#C98A4B;--yellow:#F2DDB0;--lime:#E8C99A;--teal:#A9743F;--purple:#5A3825;--line:#3B2314;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;min-height:100vh;padding-bottom:84px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--pink);z-index:30}
+.wrap{max-width:620px;margin:0 auto}
+header{background:linear-gradient(120deg,var(--pink),var(--orange) 55%,var(--yellow));padding:16px 18px 74px;border-radius:0 0 32px 32px;position:relative;text-align:center}
+h1{margin:0;font-size:2.1rem;letter-spacing:-.5px;color:#FFF6E5;text-shadow:2px 2px 0 var(--purple)}
+.tag{margin:0 0 4px;color:#FFF6E5;font-weight:700;font-size:1rem;letter-spacing:.5px}
+.srch{margin:-52px 14px 0;position:relative;z-index:2}
+.srch input{width:100%;border:3px solid var(--line);border-radius:18px;padding:15px 16px 15px 46px;font-size:1rem;background:var(--card);color:var(--ink);box-shadow:4px 4px 0 var(--purple);outline:none}
+.srch span{position:absolute;left:15px;top:13px;font-size:1.3rem}
+.chips{display:flex;gap:8px;padding:14px;overflow-x:auto}
+.chip{flex:0 0 auto;border:3px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 14px;font-weight:700;font-size:.9rem;cursor:pointer}
+.chip.on{background:var(--lime);color:#3B2314;box-shadow:3px 3px 0 var(--line)}
+.chip.loc{background:var(--teal);color:#fff}
+.info{margin:0 16px 8px;color:var(--mute);font-size:.85rem}
+.demo{margin:0 14px 10px;background:var(--yellow);color:#3B2314;border-radius:12px;padding:8px 12px;font-size:.78rem;font-weight:700}
+.list{padding:0 14px;display:grid;gap:14px}
+.card{display:flex;gap:12px;background:var(--card);border:3px solid var(--line);border-radius:22px;padding:10px;cursor:pointer;box-shadow:4px 4px 0 var(--c)}
+.card:active{transform:translate(2px,2px)}
+.card.cl,.pic.cl{filter:grayscale(1);opacity:.65}
+.hrs{font-size:.8rem;font-weight:700;margin-top:6px}
+.pic{flex:0 0 92px;height:92px;border-radius:16px;display:grid;place-items:center;font-size:2.6rem;background:var(--g)}
+.pic.big{width:100%;height:170px;flex:none;font-size:5rem;border-radius:0 0 26px 26px}
+.cb{min-width:0;flex:1}
+.cb h3{margin:2px 0 3px;font-size:1.05rem;line-height:1.2}
+.cb p{margin:0 0 6px;color:var(--mute);font-size:.82rem;line-height:1.3}
+.meta{display:flex;gap:6px;flex-wrap:wrap}
+.b{border-radius:999px;padding:3px 9px;font-size:.75rem;font-weight:800;color:#3B2314;background:var(--yellow)}
+.b.d{background:var(--lime)}.b.t{background:var(--teal);color:#fff}.b.p{background:var(--purple);color:#fff}
+.heart{align-self:flex-start;font-size:1.3rem}
+.empty{text-align:center;padding:40px 24px;color:var(--mute)}
+.empty b{display:block;font-size:3rem}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));background:var(--card);border-top:3px solid var(--line)}
+nav button{flex:1;max-width:240px;border:3px solid var(--line);border-radius:16px;padding:11px;font-weight:800;font-size:.95rem;background:var(--bg);color:var(--ink);cursor:pointer}
+nav button.on{background:var(--pink);color:#fff;box-shadow:3px 3px 0 var(--purple)}
+.sheet{position:fixed;inset:0;z-index:40;background:rgba(59,35,20,.6);display:none}
+.sheet.open{display:block}
+.panel{position:absolute;inset:6% 0 0;max-width:620px;margin:0 auto;background:var(--bg);border-radius:28px 28px 0 0;overflow-y:auto;border:3px solid var(--line);padding-bottom:30px}
+.x{position:absolute;top:12px;right:12px;z-index:3;border:3px solid var(--line);background:var(--card);color:var(--ink);border-radius:50%;width:40px;height:40px;font-size:1.1rem;font-weight:900;cursor:pointer}
+.det{padding:16px}
+.det h2{margin:0 0 4px;font-size:1.5rem}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+.st{background:var(--card);border:3px solid var(--line);border-radius:16px;padding:10px 4px;text-align:center}
+.st b{display:block;font-size:1.2rem}.st small{color:var(--mute)}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.btn{display:block;text-align:center;text-decoration:none;border:3px solid var(--line);border-radius:16px;padding:12px;font-weight:800;color:#fff;cursor:pointer;font-size:1rem;font-family:inherit}
+.btn.g{background:var(--teal)}.btn.w{background:var(--purple)}
+.btn.s{width:100%;background:var(--pink);box-shadow:4px 4px 0 var(--purple)}
+.btn.s.on{background:var(--lime);color:#3B2314}
+h4{margin:18px 0 8px;font-size:1.05rem}
+.rv{background:var(--card);border:3px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:8px;font-size:.88rem}
+.rv b{display:block;margin-bottom:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><p class="tag">Zapfan in you area ~</p><h1>🍛 ZapFan Hunter</h1></header>
+<div class="srch"><span>🔎</span><input id="q" placeholder="Search area or place, e.g. Seremban, Klang, Subang" autocomplete="off"></div>
+<div class="chips" id="chips"></div>
+<div class="chips" id="areas" style="padding-top:0"></div>
+<div class="demo">42 real shops across Klang Valley and Seremban, from Google Maps, last updated 30 Oct 2026. Open or closed is worked out live from Malaysia time.</div>
+<div class="info" id="info"></div>
+<div class="list" id="list"></div>
+</div>
+<nav><button id="t-s" class="on">🔎 Search</button><button id="t-f">❤️ Favourite <span id="fc"></span></button></nav>
+<div class="sheet" id="sh"><div class="panel" id="pn"></div></div>
+<script>
+var A={"Bangsar":[3.129,101.671],"Brickfields":[3.129,101.684],"Cheras":[3.106,101.725],"Setapak":[3.198,101.72],"Kepong":[3.21,101.635],"Petaling Jaya":[3.118,101.619],"Puchong":[3.033,101.617],"Bukit Jalil":[3.064,101.699],"Sri Petaling":[3.072,101.687],"Mont Kiara":[3.17,101.65],"Sentul":[3.185,101.69],"Kuchai Lama":[3.091,101.684],"Taman Desa":[3.102,101.684],"Wangsa Maju":[3.2,101.735],"Pudu":[3.1378,101.7124],"Sunway":[3.0665,101.6024],"Bandar Mahkota Cheras":[3.0533,101.7865],"Subang Jaya":[3.0675,101.592],"Setia Alam":[3.0955,101.4455],"Klang":[2.995,101.455],"Kajang":[3.04,101.79],"Pandan Indah":[3.129,101.753],"Seremban":[2.715,101.935],"Nilai":[2.819,101.787],"Imbi":[3.1427,101.7154],"OUG":[3.0835,101.6727]};
+var RAW=[["Nasi Campur Pagi Malam", "Bangsar", "Jalan Telawi 5", 3.1330748, 101.6707578, 4.5, 812, "NE", "10:30-22:30", 0, "🍛", "ChIJ1TF2SABJzDERmMHlQ1w3elI"], ["Pu Xian Wei Restaurant", "Brickfields", "Jalan Thambypillai", 3.1326769, 101.6884979, 3.7, 333, "CE", "06:30-20:30|0=", 0, "🍚", "ChIJrVBR6MFJzDERDr5cOLkU7k8"], ["Restoran 68 Mixed Rice", "Pudu", "Jalan Landak", 3.1377616, 101.7123818, 3.8, 1203, "CE", "10:00-21:15", 0, "🥢", "ChIJVc-cnyY2zDERuSf7ir7F1vo"], ["Dapor Sabariyya", "Bangsar", "Lorong Ara Kiri 3", 3.1276061, 101.6691895, 5.0, 6, "NE", "08:30-14:30|6=", 0, "🍲", "ChIJHTd0lX9JzDERfjZUU4l2drk"], ["Uncle Lee Mixed Rice 李杂饭专卖店", "Bandar Mahkota Cheras", "Jalan Temenggung 19/9", 3.0532647, 101.7864767, 3.6, 440, "CZ", "10:30-20:00", 0, "🍛", "ChIJrUkocIU1zDERIW80dds3A7E"], ["Restoran Chai Huat 2", "Taman Bukit Segar", "Jalan Manis 1", 3.0901299, 101.7435359, 4.2, 134, "EC", "07:00-15:00|0=", 0, "🍚", "ChIJaQTeGLc1zDERacxp8D-0eqA"], ["Restoran 58G Mixed Rice 经济杂饭", "Cheras", "Jalan Dataran Cheras 3", 3.0353087, 101.7632894, 3.5, 827, "CE", "10:00-21:15", 0, "🥢", "ChIJPSOpfdI0zDERk00CzK5aFDc"], ["Restoran Mixed Rice", "Cheras", "Jalan 34/154, Taman Dahlia", 3.0574973, 101.747936, 3.5, 516, "CE", "09:00-21:00", 0, "🍲", "ChIJpY4AJeA1zDERMy5shBHOWM0"], ["PJ72 Mixed Rice 菜饭之家", "Petaling Jaya", "Jalan 17/29, Seksyen 17", 3.1285858, 101.635376, 2.4, 169, "CE", "10:00-21:15", 0, "🍛", "ChIJ5aT4YQBJzDER4OkCc4mdC3w"], ["Restaurant 134 Mixed Rice", "Petaling Jaya", "Jalan SS 24/13, Taman Megah", 3.1143737, 101.6129823, 3.3, 2438, "CE", "10:00-21:15", 0, "🍚", "ChIJtatmx6tOzDERQS3AJPGh1fw"], ["Kantan Mixed Rice 簡單什飯", "Petaling Jaya", "Jalan 21/19, Sea Park", 3.1090731, 101.6222557, 3.9, 181, "CE", "10:00-20:00|0=", 0, "🥢", "ChIJxXZzF_xLzDERTM_8JiMZEhk"], ["Zap Fan Factory", "Sunway", "Jalan PJS 11/7, Bandar Sunway", 3.0664712, 101.6023957, 4.0, 101, "ZE", "10:00-20:00|0=", 0, "🍲", "ChIJu_wSZgBNzDERJJbOf93x6_w"], ["Restoran 10 Mixed Rice 10什饭专卖店", "Setapak", "Jalan 14/27b, Desa Setapak", 3.2058795, 101.7331944, 3.5, 557, "CE", "10:00-21:15", 0, "🍛", "ChIJO3NKkD44zDERH7_gpFWvqEw"], ["Pak Uda Nasi Campur", "Setapak", "D'Rejang, Taman Sri Rampai", 3.1920512, 101.7275452, 4.4, 51, "NE", "06:00-18:00|1=", 0, "🍚", "ChIJE6VbeSA5zDERx1KcVkDrmTs"], ["Orange Mix Rice Setapak 33", "Setapak", "Danau Kota", 3.1986963, 101.7141291, 3.6, 74, "CE", "09:00-21:00", 0, "🥢", "ChIJjxBCJpk5zDERYgPxSN-Mbi8"], ["Super Mixed Rice Subang 杂饭皇", "Subang Jaya", "Jalan USJ 1/19, Taman Subang Permai", 3.0576977, 101.6002787, 3.6, 244, "CE", "06:00-23:00", 0, "🍲", "ChIJD7kH5hhNzDER1uZyyB47Np8"], ["Restoran T23 Mixed Rice 快餐专卖店", "Subang Jaya", "Jalan USJ 10/1e, Taipan", 3.048722, 101.583851, 3.6, 548, "CE", "10:00-21:15", 0, "🍛", "ChIJAdoydRBNzDERoD-__RxNto8"], ["Mr. Rice Corner 经济杂饭", "Subang Jaya", "Jalan SS 15/4b, SS15", 3.0767427, 101.5892002, 4.1, 277, "CE", "09:30-20:45|6=09:45-14:40", 0, "🍚", "ChIJ1dVtZu1NzDERp72CtHNeB3I"], ["Orange SS 15 Mix Rice", "Subang Jaya", "Jalan SS 15/4b, SS15", 3.0772868, 101.5890259, 3.7, 390, "CE", "09:00-21:00", 0, "🥢", "ChIJQ53YnbhNzDERl3kp0Y3d1B4"], ["Restoran S11 Bandar Puteri 经济杂饭", "Puchong", "Jalan Puteri 5/1, Bandar Puteri", 3.013592, 101.6175192, 3.3, 116, "CE", "09:00-21:00", 0, "🍲", "ChIJPcClIVe1zTER6eGcJLzuNNo"], ["KL 52 Mixed Rice 经济杂饭", "Puchong", "Jalan TK 1/11e, Taman Kinrara", 3.0634774, 101.6473649, 4.2, 30, "CE", "09:30-20:30", 0, "🍛", "ChIJv2BJDuhLzDERDJcLVjmLjEg"], ["S One One Restaurant Setia Alam", "Setia Alam", "Jalan Setia Prima B U13/B", 3.0948227, 101.4459206, 3.3, 462, "CE", "09:00-21:00", 0, "🍚", "ChIJAQDAZO1TzDERvj2sjoD_ZYM"], ["新一家什饭专卖店 Xin Yi Jia", "Klang", "Taman Sentosa", 3.0099134, 101.4668924, 4.4, 89, "CE", "07:30-18:30|6=07:30-15:30|0=", 0, "🥢", "ChIJfSjelVutzTERfdlaxjAWoL0"], ["新一家杂饭专卖店 (Bandar Botanic)", "Klang", "Jalan Ramin 3, Bandar Botanik", 2.9883596, 101.4547058, 4.6, 14, "CE", "07:30-19:00|6=07:30-16:30|0=", 0, "🍲", "ChIJ2dQ1hDWtzTERUP9dzjpaurc"], ["Zap Fan Canteen", "Klang", "Jalan Kasuarina 8, Bandar Botanik", 2.9869159, 101.4517292, 4.4, 142, "ZE", "08:30-21:00|0=16:30-21:30", 0, "🍛", "ChIJQ-NPBqmtzTERyzK28HTyER4"], ["Family Rice Catering (Bukit Tinggi)", "Klang", "The Landmark, Bandar Bukit Tinggi 2", 2.9950189, 101.4428538, 4.2, 12, "CE", "08:30-18:00", 0, "🍚", "ChIJK0kDwGhTzDER-zQDaEAze7g"], ["Mr.B Mixed Rice B记杂饭", "Kajang", "Jalan SL 13, Bandar Sungai Long", 3.0395156, 101.7930402, 4.6, 63, "CE", "10:30-20:00|0=", 0, "🥢", "ChIJEZ8CDxQ1zDERbUqJkmyqOos"], ["Mixed Rice (Wong & Teh)", "Kajang", "Persiaran KWSP, Taman Universiti", 2.9415374, 101.7860356, 4.3, 16, "CE", "10:00-15:00|6=|0=", 0, "🍲", "ChIJZ-btVY3JzTER2yAU_bnR66E"], ["Restoran 1 Mixed Rice 什饭专卖店", "Kajang", "Jalan SL 1/3, Bandar Sungai Long", 3.0408595, 101.7936968, 3.3, 423, "CE", "10:00-21:15", 0, "🍛", "ChIJvcp_6qg0zDER7bKg6dzDTyg"], ["Restoran Nasi Campur Klasik", "Pandan Indah", "Persiaran MPAJ, Pandan Indah", 3.1275513, 101.7530148, 4.5, 104, "NE", "07:30-16:00|0=", 0, "🍚", "ChIJzwyFZ-M3zDER9Wzd4-9wXs0"], ["Restoran RD", "Pandan Indah", "Jalan Pandan Indah 1/23e", 3.1307562, 101.7523849, 4.1, 39, "NE", "11:00-17:30", 0, "🥢", "ChIJWQz7VfU2zDERhdYF_1nAxeY"], ["S11 Mixed Rice", "Pandan Indah", "Jalan Pandan Indah 4/4", 3.1299549, 101.7556274, 2.3, 70, "CE", "09:30-21:30", 0, "🍲", "ChIJO5g5RQA3zDERQe8atK75xqc"], ["Restoran 368 Mixed Rice", "Seremban", "Oakland Commerce Square", 2.7048984, 101.9193936, 4.1, 14, "CE", "09:30-19:30|1=10:00-19:30|0=", 0, "🍛", "ChIJ0yALaQDnzTERSn2-wnY9Rf0"], ["Qianyuge Mixed Rice 乾御阁", "Seremban", "Jalan Tunku Hassan", 2.7259545, 101.9380498, 3.2, 27, "CE", "09:00-20:00|1=06:00-15:00|2=06:00-15:00|0=", 0, "🍚", "ChIJqy5D10nhzTERWNgcSYinPRI"], ["Oakland Sheng Style Recipe", "Seremban", "Medan Perdagangan Oakland", 2.7044794, 101.9175666, 3.9, 553, "CE", "09:00-20:30", 0, "🥢", "ChIJY8Lu4ZPnzTERYE7yHPnvLRY"], ["Restoran Lesung Nilai", "Nilai", "Putra Indah, Bandar Baru Nilai", 2.8189783, 101.7871986, 4.4, 87, "NE", "07:00-16:30|0=", 0, "🍲", "ChIJc77gUwvHzTERy61RHDhuUxc"], ["Ho Jiak Mixed Rice 经济杂饭", "Sri Petaling", "Jalan Radin Anum", 3.0669473, 101.6920002, 3.4, 114, "CE", "09:30-21:00", 0, "🍛", "ChIJtzdfEgBLzDERGX-8l4oBLU4"], ["Hometown Mixed Rice 家乡杂饭", "Sri Petaling", "Jalan Perisa, Taman Bukit Indah", 3.0767228, 101.6798097, 3.2, 64, "CE", "08:00-17:00|0=", 0, "🍚", "ChIJeejiv15KzDERZSzi-Um-zuI"], ["Restoran OUG23 Mixed Rice", "OUG", "Jalan Mega Mendung, Taman United", 3.083518, 101.672755, 3.9, 1599, "CE", "10:00-21:15", 0, "🥢", "ChIJL6GCV0VKzDERpGbR32h-W88"], ["Super Mixed Rice & Seafood 杂饭皇", "Imbi", "Jalan Barat, off Jalan Imbi", 3.142774, 101.7154225, 4.5, 140, "CE", "09:00-20:00", 0, "🍲", "ChIJPfW6a4k3zDERM4HTMyhTBEo"], ["Restoran Mum Taste Mixed Rice", "Kepong", "Jalan Kampung Batu, Jalan Ipoh", 3.2039177, 101.6749925, 4.0, 31, "CE", "10:30-21:00", 0, "🍛", "ChIJw1Z2QgBHzDERGjl5a6i5LtE"], ["Restoran Sun Gee 胜记杂菜饭", "Cheras", "Jalan Bunga Tanjung 10A, Taman Muda", 3.1185052, 101.7624565, 3.7, 485, "CE", "10:40-21:00", 0, "🍚", "ChIJraVr3oQ2zDER65FgW-Y1O0s"]];
+var TN={E:"Economy Rice",C:"Chap Fan 杂饭",N:"Nasi Campur",Z:"Zapfan"};
+var RV=[["Aisha","Plenty of dishes, fried chicken goes fast. Go before 12!"],["Kevin","Fair prices and the curry vegetables are really good."],["Mei Ling","Clean stall, friendly aunty, queue moves quickly."],["Hafiz","Sambal is spicy and addictive. Will come back."],["Siew","Good variety for the price, a solid lunch spot."],["Raj","Fresh dishes, decent portions. Parking can be tricky."]];
+var COL=["#8B4A2B","#C98A4B","#A9743F","#5A3825","#D9B27C"];
+var GR=["linear-gradient(135deg,#C98A4B,#F2DDB0)","linear-gradient(135deg,#8B4A2B,#C98A4B)","linear-gradient(135deg,#A9743F,#E8C99A)","linear-gradient(135deg,#5A3825,#A9743F)","linear-gradient(135deg,#E8C99A,#C98A4B)"];
+var S=RAW.map(function(r,i){return{id:i,n:r[0],a:r[1],ad:r[2],p:[r[3],r[4]],r:r[5],c:r[6],t:r[7].split("").map(function(k){return TN[k]}),pid:r[11],h:r[8],H:parseH(r[8]),e:r[10]}});
+var base=[3.139,101.687],center=base,cname="Kuala Lumpur city centre",R=5,q="",tab="s",favs=[];
+try{favs=JSON.parse(localStorage.getItem("zf")||"[]")}catch(e){}
+function persist(){try{localStorage.setItem("zf",JSON.stringify(favs))}catch(e){}}
+function dist(a,b){var r=function(x){return x*Math.PI/180},dl=r(b[0]-a[0]),dn=r(b[1]-a[1]);var h=Math.pow(Math.sin(dl/2),2)+Math.cos(r(a[0]))*Math.cos(r(b[0]))*Math.pow(Math.sin(dn/2),2);return 12742*Math.asin(Math.sqrt(h))}
+function tm(h,k){var p=h.split("-")[k].split(":");return +p[0]*60+ +p[1]}
+function parseH(h){var p=h.split("|"),H=[],f=function(v){return v?[tm(v,0),tm(v,1)]:null};for(var i=0;i<7;i++)H[i]=f(p[0]);p.slice(1).forEach(function(x){H[+x[0]]=f(x.slice(2))});return H}
+function nowKL(){var n=new Date(Date.now()+288e5);return[n.getUTCDay(),n.getUTCHours()*60+n.getUTCMinutes()]}
+var DN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+function ft(m){var h=Math.floor(m/60),p=h>=12?"pm":"am";h=h%12||12;return h+(m%60?":"+("0"+m%60).slice(-2):"")+p}
+function status(s){var t=nowKL(),d=t[0],m=t[1],h=s.H[d];if(h&&m>=h[0]&&m<h[1])return{open:true,txt:"Open · closes "+ft(h[1])};for(var k=(h&&m<h[0])?0:1;k<=7;k++){var n=s.H[(d+k)%7];if(n){var w=k===0?"today":k===1?"tomorrow":DN[(d+k)%7];return{open:false,txt:"Closed · opens "+w+" "+ft(n[0])}}}return{open:false,txt:"Closed"}}
+function hoursHtml(s){var st=status(s),d=nowKL()[0],r="";for(var i=1;i<=7;i++){var k=i%7,h=s.H[k];r+='<div style="display:flex;justify-content:space-between;padding:3px 0;font-weight:'+(k===d?"800":"400")+'"><span>'+DN[k]+'</span><span>'+(h?ft(h[0])+" – "+ft(h[1]):"Closed")+"</span></div>"}return'<h4>Opening hours</h4><div class="rv"><b>'+(st.open?"🟢 ":"⚫ ")+st.txt+"</b>"+r+"</div>"}
+function emptyMsg(){var b=null,bd=1e9;S.forEach(function(s){var d=dist(center,s.p);if(d<bd){bd=d;b=s}});return"No shops found within "+R+" km. The nearest in our list is "+b.n+" ("+km(bd)+" away). Shops are added area by area, so your area may not be covered yet."}
+function km(d){return d<1?Math.round(d*1000)+" m":d.toFixed(1)+" km"}
+function $(id){return document.getElementById(id)}
+function stars(r){return"★".repeat(Math.round(r))+"☆".repeat(5-Math.round(r))}
+function chips(){$("chips").innerHTML=[5,10].map(function(k){return'<button class="chip'+(R===k?" on":"")+'" data-r="'+k+'">'+(k===5?"Nearby · 5 km":"10 km area")+"</button>"}).join("")+'<button class="chip loc" id="loc">📍 Use my location</button>';$("areas").innerHTML='<span class="info" style="flex:0 0 auto;margin:auto 0;white-space:nowrap">Pick your area:</span>'+Object.keys(A).map(function(k){return'<button class="chip" data-a="'+k+'">'+k+"</button>"}).join("")}
+function card(s){
+ var d=dist(center,s.p),f=favs.indexOf(s.id)>-1;
+ return'<div class="card'+(status(s).open?"":" cl")+'" data-id="'+s.id+'" style="--c:'+COL[s.id%5]+'"><div class="pic" style="--g:'+GR[s.id%5]+'">'+s.e+'</div><div class="cb"><h3>'+s.n+'</h3><p>'+s.ad+', '+s.a+'</p><div class="meta"><span class="b">★ '+s.r.toFixed(1)+'</span><span class="b d">'+km(d)+'</span><span class="b t">'+s.t[0]+'</span></div><div class="hrs">'+(status(s).open?"🟢 ":"⚫ ")+status(s).txt+'</div></div><div class="heart">'+(f?"❤️":"🤍")+"</div></div>"}
+function render(){
+ var items,msg;
+ if(tab==="f"){
+  items=S.filter(function(s){return favs.indexOf(s.id)>-1});
+  msg=items.length+" saved place"+(items.length===1?"":"s");
+ }else{
+  items=S.filter(function(s){
+   if(dist(center,s.p)>R)return false;
+   if(q&&!areaHit){var h=(s.n+" "+s.ad+" "+s.a+" "+s.t.join(" ")).toLowerCase();return h.indexOf(q)>-1}
+   return true});
+  msg=items.length+" places within "+R+" km of "+cname;
+ }
+ items.sort(function(a,b){return dist(center,a.p)-dist(center,b.p)});
+ $("info").textContent=msg;
+ $("list").innerHTML=items.length?items.map(card).join(""):'<div class="empty"><b>'+(tab==="f"?"💔":"🍽️")+"</b>"+(tab==="f"?"No favourites yet. Tap a shop and hit Save.":emptyMsg())+"</div>";
+ $("fc").textContent=favs.length?"("+favs.length+")":"";
+ $("t-s").className=tab==="s"?"on":"";$("t-f").className=tab==="f"?"on":"";
+ document.querySelector(".srch").style.display=document.querySelector(".chips").style.display=$("areas").style.display=tab==="s"?"":"none";
+}
+var areaHit=false;
+function search(v){
+ q=v.trim().toLowerCase();areaHit=false;center=base;cname=base===center&&cname==="Kuala Lumpur city centre"?cname:cname;
+ if(q.length>=2){for(var k in A){if(k.toLowerCase().indexOf(q)===0||q.indexOf(k.toLowerCase())===0){center=A[k];cname=k;areaHit=true;break}}}
+ if(!areaHit)cname=geo?"you":"Kuala Lumpur city centre";
+ render();
+}
+var geo=false;
+function open(id){
+ var s=S[id],d=dist(center,s.p),f=favs.indexOf(id)>-1,ll=s.p[0]+","+s.p[1];
+ var rv=[0,1,2].map(function(i){var x=RV[(id+i*2)%RV.length];return'<div class="rv"><b>'+x[0]+" · "+stars(Math.max(3,Math.round(s.r)-(i===2?1:0)))+"</b>"+x[1]+"</div>"}).join("");
+ $("pn").innerHTML='<button class="x" id="cl">✕</button><div class="pic big'+(status(s).open?"":" cl")+'" style="--g:'+GR[id%5]+'">'+s.e+'</div><div class="det"><h2>'+s.n+'</h2><p style="margin:0;color:var(--mute)">'+s.ad+", "+s.a+'</p><div class="meta" style="margin-top:8px">'+s.t.map(function(t){return'<span class="b p">'+t+"</span>"}).join("")+'</div><div class="stats"><div class="st"><b>'+s.r.toFixed(1)+'</b><small>'+stars(s.r)+'</small></div><div class="st"><b>'+km(d)+'</b><small>distance</small></div><div class="st"><b>'+s.c+'</b><small>reviews</small></div></div><div class="acts"><a class="btn g" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+ll+'&query_place_id='+s.pid+'">🗺️ Google Maps</a><a class="btn w" target="_blank" rel="noopener" href="https://waze.com/ul?ll='+ll+'&navigate=yes">🚗 Waze</a></div><button class="btn s'+(f?" on":"")+'" id="sv" data-id="'+id+'">'+(f?"❤️ Saved":"🤍 Save to Favourite")+'</button>'+hoursHtml(s)+'<h4>Reviews</h4><div class="rv"><b>★ '+s.r.toFixed(1)+' · '+s.c+' Google reviews</b>See what diners say before you go.</div><a class="btn g" style="margin-bottom:10px" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+ll+'&query_place_id='+s.pid+'">⭐ Read reviews on Google Maps</a><p style="color:var(--mute);font-size:.75rem;margin:6px 0 0">Place data from Google Maps, saved 30 Oct 2026. Hours can change, so check before you go.</p></div>';
+ $("sh").className="sheet open";
+}
+document.addEventListener("click",function(e){
+ var t=e.target,c=t.closest&&t.closest(".card"),r=t.closest&&t.closest(".chip");
+ if(t.id==="cl"||t.id==="sh"){$("sh").className="sheet";return}
+ if(t.id==="sv"){var id=+t.getAttribute("data-id"),i=favs.indexOf(id);if(i>-1)favs.splice(i,1);else favs.push(id);persist();open(id);render();return}
+ if(r&&r.id==="loc"){if(navigator.geolocation){navigator.geolocation.getCurrentPosition(function(p){base=[p.coords.latitude,p.coords.longitude];geo=true;cname="you";search($("q").value);chips()},function(){alert("Location is blocked in this view. Allow location for this page, or tap your area in the Pick your area row.")},{timeout:10000})}else{alert("This browser can't share location. Tap your area in the Pick your area row.")}return}
+ if(r&&r.getAttribute("data-a")){$("q").value=r.getAttribute("data-a");search($("q").value);return}if(r&&r.getAttribute("data-r")){R=+r.getAttribute("data-r");chips();render();return}
+ if(c){open(+c.getAttribute("data-id"));return}
+ if(t.id==="t-s"){tab="s";render()}
+ if(t.id==="t-f"||(t.parentNode&&t.parentNode.id==="t-f")){tab="f";render()}
+});
+$("q").addEventListener("input",function(){search(this.value)});
+chips();render();
+</script>
+</body>
+</html>
