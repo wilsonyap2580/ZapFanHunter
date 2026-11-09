@@ -5,7 +5,10 @@ async function get(path, params = {}) {
   return res.json();
 }
 
+let healthOnce;
 export const api = {
+  /** Server features, fetched once: { live, uploads, ... } */
+  health: () => (healthOnce ??= get('/health').catch((e) => { healthOnce = undefined; throw e; })),
   areas: () => get('/areas'),
   spots: (params) => get('/spots', params),
   spot: (id, params) => get(`/spots/${encodeURIComponent(id)}`, params),

@@ -256,6 +256,9 @@ function ReviewForm({ spotId, onAdded }) {
   const [photo, setPhoto] = useState(null);
   const [preview, setPreview] = useState('');
   const [fileKey, setFileKey] = useState(0); // remounts the file input to clear it
+  // Photo uploads are off where the server can't keep files (e.g. on Vercel).
+  const [uploads, setUploads] = useState(false);
+  useEffect(() => { api.health().then((h) => setUploads(!!h.uploads)).catch(() => {}); }, []);
 
   useEffect(() => {
     if (!photo) { setPreview(''); return undefined; }
@@ -301,7 +304,7 @@ function ReviewForm({ spotId, onAdded }) {
 
   return (
     <form onSubmit={submit} className="grid gap-3 rounded-2xl bg-white p-4 ring-1 ring-kicap/5">
-      <p className="font-semibold">Been here? Tell people what to tapau.</p>
+      <p className="font-semibold">Been here? Leave a note.</p>
       <div className="flex gap-1" role="radiogroup" aria-label="Your rating">
         {[1, 2, 3, 4, 5].map((n) => (
           <button type="button" key={n} role="radio" aria-checked={stars === n} onClick={() => setStars(n)} aria-label={`${n} star${n > 1 ? 's' : ''}`}
@@ -310,7 +313,7 @@ function ReviewForm({ spotId, onAdded }) {
       </div>
       <input value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="Your name" maxLength={40} aria-label="Your name" className={field} />
       <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="What did you order? How was it?" maxLength={600} rows={3} aria-label="Your note" className={`${field} resize-y`} />
-      <div className="flex flex-wrap items-center gap-3">
+      {uploads && <div className="flex flex-wrap items-center gap-3">
         <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-dashed border-kicap/20 px-3.5 text-sm font-medium text-kopi transition hover:border-sambal/50 hover:text-kicap focus-within:ring-4 focus-within:ring-sambal/10">
           <Icon name="camera" className="size-4" />
           {photo ? 'Change photo' : 'Add a photo of your plate'}
@@ -323,7 +326,7 @@ function ReviewForm({ spotId, onAdded }) {
           </span>
         )}
         <small className="text-xs text-kopi-light">Optional. JPEG, PNG or WebP, up to 5 MB.</small>
-      </div>
+      </div>}
       {msg && <small className="text-sambal-deep">{msg}</small>}
       <button disabled={busy || !author.trim() || !body.trim() || !stars} className={`${btnPrimary} disabled:opacity-45 disabled:shadow-none`}>
         {busy ? 'Posting…' : 'Post note'}

@@ -40,6 +40,25 @@ The key needs **Places API (New)**. To keep costs down, the app:
 
 Also set a requests-per-day quota on the API in Google Cloud Console, so Google enforces a cap too. `GET /api/health` shows today's call count.
 
+## Deploy to Vercel (free)
+
+Vercel's servers can't keep files, so the deployed app keeps its data in a free [Turso](https://turso.tech) database (SQLite-compatible) instead of `server/data/zapfan.db`. Locally nothing changes: without `TURSO_DATABASE_URL` the app uses the local file.
+
+1. **Create the database.** Sign up at turso.tech, create a database (any name, pick the region closest to Malaysia, e.g. Singapore), then copy its **URL** (`libsql://...`) and create a **token**.
+2. **Import the repo in Vercel.** At vercel.com → Add New → Project → import this GitHub repo. Leave the settings as they are; `vercel.json` sets the build.
+3. **Add environment variables** (Project → Settings → Environment Variables):
+
+   | Name | Value |
+   | --- | --- |
+   | `TURSO_DATABASE_URL` | the `libsql://...` URL |
+   | `TURSO_AUTH_TOKEN` | the token |
+   | `GOOGLE_MAPS_API_KEY` | your Places API key (optional) |
+   | `PLACES_DAILY_LIMIT` | e.g. `150` (optional) |
+
+4. **Deploy** (or Redeploy after adding the variables). The first request creates the tables and loads the saved list.
+
+On Vercel, diner notes work but photo uploads are turned off, because there's nowhere to keep the files. The web app is served from `web/dist`; every `/api/*` request goes to the function in `api/index.js`, which runs the same Express app as `server/src/index.js`.
+
 Other scripts:
 
 | Command | What it does |

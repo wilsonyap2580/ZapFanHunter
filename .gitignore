@@ -4,3 +4,5 @@ dist/
 .env
 server/data/*.db
 server/data/*.db-*
+.vercel/
+server/data/uploads/

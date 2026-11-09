@@ -1,8 +1,8 @@
 // Live places, photos and reviews from Google Places API (New).
-// Google's terms only allow keeping place IDs long term, so everything else is fetched
-// live and held in a short in-memory cache. The API key never leaves the server.
+// Results are saved in the database for PLACES_CACHE_HOURS to keep Google calls (and cost) down.
+// The API key never leaves the server.
 import { formatTime, nowInMalaysia } from './hours.js';
-import { db } from './db.js';
+import { one, run } from './db.js';
 
 const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const base = () => (process.env.PLACES_API_BASE || 'https://places.googleapis.com/v1').replace(/\/$/, '');
@@ -42,9 +42,6 @@ class TTLCache {
   }
   clear() { this.map.clear(); }
 }
-// Only photo names we have handed out can be fetched, so /api/photo can't be used to burn quota.
-const knownPhotos = new TTLCache(24 * 3600e3, 5000);
-
 // ---- saved Google results ------------------------------------------------------------
 // Searches, place details and photo links are saved in SQLite and reused until they are
 // older than PLACES_CACHE_HOURS (default 120 = 5 days), so opening the app doesn't call Google each time.
@@ -53,24 +50,24 @@ const parsedHours = Number.parseFloat(process.env.PLACES_CACHE_HOURS ?? '');
 export const CACHE_HOURS = Number.isFinite(parsedHours) && parsedHours > 0 ? parsedHours : 120;
 const CACHE_MS = CACHE_HOURS * 3600e3;
 
-db.exec('CREATE TABLE IF NOT EXISTS places_cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, fetched_at INTEGER NOT NULL)');
-const readCache = db.prepare('SELECT value, fetched_at FROM places_cache WHERE key = ?');
-const writeCache = db.prepare(`INSERT INTO places_cache (key, value, fetched_at) VALUES (?, ?, ?)
-  ON CONFLICT(key) DO UPDATE SET value = excluded.value, fetched_at = excluded.fetched_at`);
+// Tables are created in db.js.
+const readCache = (k) => one('SELECT value, fetched_at FROM places_cache WHERE key = ?', [k]);
+const writeCache = (k, v) => run(`INSERT INTO places_cache (key, value, fetched_at) VALUES (?, ?, ?)
+  ON CONFLICT(key) DO UPDATE SET value = excluded.value, fetched_at = excluded.fetched_at`, [k, v, Date.now()]);
 
-export function clearPlacesCache() { db.exec('DELETE FROM places_cache'); knownPhotos.clear(); }
+export async function clearPlacesCache() { await run('DELETE FROM places_cache'); }
 
 // Share one in-flight request between concurrent callers with the same cache key.
 const inflight = new Map();
 async function cached(k, fn, stillGood) {
-  const row = readCache.get(k);
+  const row = await readCache(k);
   if (row && Date.now() - row.fetched_at < CACHE_MS) {
     const v = JSON.parse(row.value);
     if (!stillGood || await stillGood(v, row.fetched_at)) return v;
   }
   if (inflight.has(k)) return inflight.get(k);
   const p = fn()
-    .then((v) => { if (!v?.dontSave) writeCache.run(k, JSON.stringify(v), Date.now()); return v; })
+    .then(async (v) => { if (!v?.dontSave) await writeCache(k, JSON.stringify(v)); return v; })
     .catch((e) => {
       if (!row || e.upstreamStatus === 404) throw e;
       console.warn(`Using saved copy of ${k.split('|')[0]} from ${new Date(row.fetched_at).toISOString()}: ${e.message}`);
@@ -87,20 +84,19 @@ async function cached(k, fn, stillGood) {
 const parsedLimit = Number.parseInt(process.env.PLACES_DAILY_LIMIT ?? '', 10);
 export const DAILY_LIMIT = Number.isFinite(parsedLimit) && parsedLimit >= 0 ? parsedLimit : 150;
 
-db.exec('CREATE TABLE IF NOT EXISTS api_usage (day TEXT PRIMARY KEY, calls INTEGER NOT NULL DEFAULT 0)');
 const usageDay = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
-const reserveCall = db.prepare(`INSERT INTO api_usage (day, calls) VALUES (?, 1)
-  ON CONFLICT(day) DO UPDATE SET calls = calls + 1 WHERE calls < ?`);
-const readUsage = db.prepare('SELECT calls FROM api_usage WHERE day = ?');
+// One atomic statement, so the cap holds even with several servers counting at once.
+const reserveCall = () => run(`INSERT INTO api_usage (day, calls) VALUES (?, 1)
+  ON CONFLICT(day) DO UPDATE SET calls = calls + 1 WHERE calls < ?`, [usageDay(), DAILY_LIMIT]);
 
-export function placesUsage() {
+export async function placesUsage() {
   const day = usageDay();
-  return { day, used: readUsage.get(day)?.calls ?? 0, limit: DAILY_LIMIT };
+  return { day, used: (await one('SELECT calls FROM api_usage WHERE day = ?', [day]))?.calls ?? 0, limit: DAILY_LIMIT };
 }
 
 async function call(path, { method = 'GET', fields, body } = {}) {
   // Reserve a slot before calling, so failed requests count too.
-  if (DAILY_LIMIT === 0 || reserveCall.run(usageDay(), DAILY_LIMIT).changes === 0) {
+  if (DAILY_LIMIT === 0 || (await reserveCall()).changes === 0) {
     const err = new Error(`Daily limit of ${DAILY_LIMIT} Google Places calls reached`);
     err.dailyLimit = true;
     throw err;
@@ -174,15 +170,23 @@ export function placeDetails(id) {
  * for when its details can't be fetched from Google. Never calls Google. Returns null if
  * no saved search has it.
  */
-const findInSearches = db.prepare(`SELECT value FROM places_cache
-  WHERE key LIKE 'search-v2|%' AND instr(value, ?) > 0 ORDER BY fetched_at DESC LIMIT 1`);
-export function savedSearchPlace(id) {
-  const row = findInSearches.get(`"id":${JSON.stringify(id)}`);
+export async function savedSearchPlace(id) {
+  const row = await one(`SELECT value FROM places_cache
+    WHERE key LIKE 'search-v2|%' AND instr(value, ?) > 0 ORDER BY fetched_at DESC LIMIT 1`, [`"id":${JSON.stringify(id)}`]);
   if (!row) return null;
   return JSON.parse(row.value).find((e) => e.place?.id === id)?.place || null;
 }
 
-export function isKnownPhoto(name) { return knownPhotos.get(name) === true; }
+/**
+ * Only photos that came with a saved search or place can be fetched, so /api/photo
+ * can't be used to burn Google quota. Checked in the database so it works across
+ * Vercel's separate server instances.
+ */
+export async function isKnownPhoto(name) {
+  const row = await one(`SELECT 1 AS ok FROM places_cache
+    WHERE (key LIKE 'search-v2|%' OR key LIKE 'detail|%') AND instr(value, ?) > 0 LIMIT 1`, [`"name":${JSON.stringify(name)}`]);
+  return !!row;
+}
 
 // Google's photo links can expire before our saved copy does. Links older than 12 hours are
 // checked against Google's image server (free, not a Places API call) at most once an hour.
@@ -208,7 +212,6 @@ export function photoUri(name, maxWidthPx) {
 
 // ---- shaping -----------------------------------------------------------------------
 export function photoPath(name, w = 480) {
-  knownPhotos.set(name, true);
   return `/api/photo?name=${encodeURIComponent(name)}&w=${w}`;
 }
 

@@ -2,6 +2,7 @@
   "name": "zapfan",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "ZapFan: find zap fan (economy rice) spots near you in Malaysia",
   "workspaces": [
     "server",
