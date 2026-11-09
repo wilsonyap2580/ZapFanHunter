@@ -14,6 +14,19 @@ function useDebounced(value, ms) {
   return v;
 }
 
+function greeting() {
+  const h = new Date(Date.now() + 8 * 3600 * 1000).getUTCHours();
+  if (h < 11) return 'Sarapan time.';
+  if (h < 15) return 'Lunch is calling.';
+  if (h < 18) return 'Tea time, or early dinner?';
+  return 'Makan malam, jom.';
+}
+
+const chip = (on) =>
+  `shrink-0 h-9 px-3.5 rounded-full text-sm font-medium border transition-colors ${
+    on ? 'bg-kicap text-santan border-kicap' : 'bg-white text-kopi border-kicap/10 hover:border-kicap/25 hover:text-kicap'
+  }`;
+
 export default function App() {
   const geo = useLiveLocation();
   const { saved, toggle } = useSaved();
@@ -50,103 +63,189 @@ export default function App() {
     () => (tab === 'saved' ? data.spots.filter((s) => saved.includes(s.id)) : data.spots),
     [tab, data.spots, saved]
   );
-
+  const openCount = list.filter((s) => s.status.open).length;
   const whereLabel = area || (geo.pos ? 'you' : 'KL city centre');
 
   return (
-    <>
-      <div className="wrap">
-        <header>
-          <div className="brand">
-            <img src="/favicon.svg" alt="" width="24" height="24" />
-            <h1>ZapFan</h1>
+    <div className="min-h-screen pb-28">
+      {/* Header */}
+      <header className="relative overflow-hidden bg-sambal text-santan">
+        <div className="absolute inset-0 bg-dots" aria-hidden="true" />
+        <img
+          src={plateArt(7)} alt="" aria-hidden="true"
+          className="pointer-events-none absolute -right-20 -top-16 w-56 rotate-12 rounded-full opacity-35 shadow-2xl shadow-sambal-deep/60 sm:-right-6 sm:-top-10 sm:w-96 sm:opacity-95 [clip-path:circle(45%)]"
+        />
+        <div className="relative mx-auto max-w-5xl px-4 pb-20 pt-8 sm:pb-24 sm:pt-12">
+          <div className="flex items-center gap-2">
+            <img src="/favicon.svg" alt="" className="size-7 rounded-full ring-2 ring-santan/80" />
+            <span className="font-display text-xl font-bold tracking-tight">ZapFan</span>
           </div>
-          <p className="tag">Zap fan, chap fan and nasi campur spots near you, across Klang Valley and Seremban</p>
-        </header>
+          <h1 className="mt-6 max-w-md font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl">
+            {greeting()}<br />
+            <span className="text-kunyit">Find a plate nearby.</span>
+          </h1>
+          <p className="mt-3 max-w-sm text-santan/85">
+            Zap fan, chap fan and nasi campur spots across Klang Valley and Seremban. Pick your lauk, pay by the plate.
+          </p>
+        </div>
+      </header>
 
+      <main className="relative mx-auto -mt-12 max-w-5xl px-4">
+        {/* Search + filters card */}
         {tab === 'search' && (
-          <div className="filters">
-            <div className="srch">
-              <Icon name="search" />
-              <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search an area or shop" aria-label="Search an area or shop" />
-            </div>
-            <div className="rng">
-              <div className="rng-top">
-                <span>Within <b>{radius} km</b></span>
-                <div className="chips">
-                  {QUICK_RADII.map((r) => (
-                    <button key={r} className={`chip sm ${radius === r ? 'on' : ''}`} onClick={() => setRadius(r)}>{r} km</button>
-                  ))}
-                </div>
-              </div>
-              <input type="range" min="1" max="30" value={radius} onChange={(e) => setRadius(Number(e.target.value))} aria-label="Search radius in km" disabled={!!(dq || area)} />
-              {(dq || area) && <small className="hint">Searching by name or area looks everywhere, so the distance limit is paused.</small>}
-            </div>
-            <div className="areas">
-              <span className="lbl">Area</span>
-              <div className="chips">
-                <button className={`chip ${openOnly ? 'on' : ''}`} onClick={() => setOpenOnly((v) => !v)}>Open now</button>
-                <button className={`chip ${!area ? 'on' : ''}`} onClick={() => setArea('')}>Near {geo.pos ? 'me' : 'KL'}</button>
-                {areas.map((a) => (
-                  <button key={a.name} className={`chip ${area === a.name ? 'on' : ''}`} onClick={() => setArea(area === a.name ? '' : a.name)}>{a.name}</button>
+          <section className="rounded-3xl bg-white p-4 shadow-xl shadow-kicap/10 ring-1 ring-kicap/5 sm:p-5">
+            <label className="relative block">
+              <span className="sr-only">Search an area or shop</span>
+              <Icon name="search" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-kopi-light" />
+              <input
+                type="search" value={q} onChange={(e) => setQ(e.target.value)}
+                placeholder="Search an area or shop"
+                className="h-14 w-full rounded-2xl border border-kicap/10 bg-santan pl-12 pr-4 text-base outline-none transition placeholder:text-kopi-light focus:border-sambal/50 focus:bg-white focus:ring-4 focus:ring-sambal/10"
+              />
+            </label>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-kopi">
+                Within <b className="font-mono font-medium text-kicap">{radius} km</b>
+                {(dq || area) && <span className="ml-2 text-xs text-kopi-light">(paused while searching)</span>}
+              </p>
+              <div className="flex gap-1">
+                {QUICK_RADII.map((r) => (
+                  <button key={r} onClick={() => setRadius(r)}
+                    className={`h-7 rounded-full px-2.5 font-mono text-xs transition-colors ${radius === r ? 'bg-sambal text-white' : 'text-kopi hover:bg-santan-deep'}`}>
+                    {r} km
+                  </button>
                 ))}
               </div>
             </div>
-          </div>
+            <input type="range" min="1" max="30" value={radius} onChange={(e) => setRadius(Number(e.target.value))}
+              aria-label="Search radius in km" disabled={!!(dq || area)} className="mt-2 w-full disabled:opacity-40" />
+
+            <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-5 sm:px-5">
+              <button className={`${chip(openOnly)} inline-flex items-center gap-1.5`} onClick={() => setOpenOnly((v) => !v)}>
+                <span className={`size-2 rounded-full ${openOnly ? 'bg-pandan-soft' : 'bg-pandan'}`} />Open now
+              </button>
+              <button className={chip(!area)} onClick={() => setArea('')}>Near {geo.pos ? 'me' : 'KL'}</button>
+              {areas.map((a) => (
+                <button key={a.name} className={chip(area === a.name)} onClick={() => setArea(area === a.name ? '' : a.name)}>{a.name}</button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {tab === 'saved' && (
+          <section className="rounded-3xl bg-white p-5 shadow-xl shadow-kicap/10 ring-1 ring-kicap/5">
+            <h2 className="font-display text-2xl font-bold">My spots</h2>
+            <p className="mt-1 text-sm text-kopi">The places you've hearted, nearest first. Saved on this device.</p>
+          </section>
         )}
 
         <LocationBar geo={geo} />
 
-        <div className="info">
-          {error ? (
-            <span className="err">Can't reach the ZapFan API. Is the server running? ({error})</span>
-          ) : tab === 'saved' ? (
-            <><b>{list.length}</b> saved {list.length === 1 ? 'spot' : 'spots'}</>
-          ) : (
-            <><b>{list.length}</b> {list.length === 1 ? 'spot' : 'spots'} {dq ? <>matching "{dq}"</> : area ? <>in {area}</> : <>within {radius} km of {whereLabel}</>}{openOnly && ', open now'}</>
+        {/* Result summary */}
+        <div className="mb-4 mt-8 flex items-end justify-between gap-4">
+          <h2 className="font-display text-2xl font-bold leading-tight">
+            {error ? 'Hmm, no connection' : tab === 'saved'
+              ? `${list.length} saved ${list.length === 1 ? 'spot' : 'spots'}`
+              : dq ? <>Results for “{dq}”</> : area ? <>Spots in {area}</> : <>Near {whereLabel}</>}
+          </h2>
+          {!error && list.length > 0 && (
+            <p className="shrink-0 text-sm text-kopi">
+              <b className="font-semibold text-pandan">{openCount} open</b> of {list.length}
+            </p>
           )}
         </div>
 
-        <div className={`list ${loading ? 'busy' : ''}`}>
+        {error && (
+          <div className="rounded-2xl bg-sambal-soft p-4 text-sm text-sambal-deep">
+            Can't reach the ZapFan API. Is the server running? ({error})
+          </div>
+        )}
+
+        {/* Cards */}
+        <div className={`grid gap-4 transition-opacity sm:grid-cols-2 lg:grid-cols-3 ${loading ? 'opacity-60' : ''}`}>
           {list.map((s) => (
-            <article key={s.id} className={`card ${s.status.open ? '' : 'cl'}`} onClick={() => setOpenId(s.id)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setOpenId(s.id)}>
-              <div className="pic"><img src={plateArt(s.id)} alt="" loading="lazy" /></div>
-              <div className="cb">
-                <div className="ttl">
-                  <h3>{s.name}</h3>
-                  <button className={`heart ${saved.includes(s.id) ? 'on' : ''}`} aria-label={saved.includes(s.id) ? 'Remove from my spots' : 'Save spot'} onClick={(e) => { e.stopPropagation(); toggle(s.id); }}>
-                    <Icon name="heart" />
-                  </button>
-                </div>
-                <p className="addr">{s.address}, {s.area}</p>
-                <p className="meta">
-                  <span className="n"><Icon name="star" />{s.rating.toFixed(1)}</span>
-                  <span className="n">{km(s.distanceKm)}</span>
-                  <span>{s.types[0]}</span>
-                </p>
-                <p className={`st ${s.status.open ? 'open' : ''}`}><i />{s.status.text}</p>
-              </div>
-            </article>
+            <SpotCard key={s.id} s={s} saved={saved.includes(s.id)} onSave={() => toggle(s.id)} onOpen={() => setOpenId(s.id)} />
           ))}
-          {!loading && !error && list.length === 0 && (
-            <div className="empty">
-              {tab === 'saved'
-                ? 'Nothing saved yet. Tap the heart on a spot to keep it here.'
-                : `No spots found ${dq ? `for "${dq}"` : `within ${radius} km`}${openOnly ? ' that are open right now' : ''}. Try a wider radius or another area.`}
-            </div>
-          )}
         </div>
-      </div>
 
-      <nav>
-        <button className={tab === 'search' ? 'on' : ''} onClick={() => setTab('search')}><Icon name="search" />Search</button>
-        <button className={tab === 'saved' ? 'on' : ''} onClick={() => setTab('saved')}><Icon name="heart" />My spots {saved.length > 0 && <span className="fc">{saved.length}</span>}</button>
+        {!loading && !error && list.length === 0 && (
+          <div className="rounded-3xl border-2 border-dashed border-kicap/10 bg-white/60 px-6 py-12 text-center">
+            <img src={plateArt(3)} alt="" className="mx-auto size-24 rounded-full opacity-70 grayscale-[.4]" />
+            <p className="mt-4 font-display text-xl font-bold">
+              {tab === 'saved' ? 'No saved spots yet' : 'Nothing on the plate here'}
+            </p>
+            <p className="mx-auto mt-1 max-w-xs text-sm text-kopi">
+              {tab === 'saved'
+                ? 'Tap the heart on any spot to keep it here for your next makan run.'
+                : `No spots ${dq ? `for “${dq}”` : `within ${radius} km`}${openOnly ? ' open right now' : ''}. Try a wider radius or another area.`}
+            </p>
+          </div>
+        )}
+      </main>
+
+      {/* Bottom nav */}
+      <nav className="fixed inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-[calc(12px+env(safe-area-inset-bottom,0px))] pt-3">
+        <div className="flex gap-1 rounded-full bg-kicap p-1.5 shadow-2xl shadow-kicap/30">
+          {[['search', 'search', 'Discover'], ['saved', 'heart', 'My spots']].map(([key, icon, label]) => (
+            <button key={key} onClick={() => setTab(key)}
+              className={`inline-flex h-11 items-center gap-2 rounded-full px-5 text-sm font-semibold transition-colors ${tab === key ? 'bg-santan text-kicap' : 'text-santan/75 hover:text-santan'}`}>
+              <Icon name={icon} className={`size-4 ${tab === key ? 'text-sambal' : ''}`} />
+              {label}
+              {key === 'saved' && saved.length > 0 && (
+                <span className="grid h-5 min-w-5 place-items-center rounded-full bg-sambal px-1.5 font-mono text-[11px] text-white">{saved.length}</span>
+              )}
+            </button>
+          ))}
+        </div>
       </nav>
 
       {openId !== null && (
         <SpotSheet id={openId} center={center} live={!!geo.pos} saved={saved.includes(openId)} onToggleSave={() => toggle(openId)} onClose={() => setOpenId(null)} />
       )}
-    </>
+    </div>
+  );
+}
+
+function SpotCard({ s, saved, onSave, onOpen }) {
+  const open = s.status.open;
+  return (
+    <article
+      onClick={onOpen} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpen()}
+      className="group cursor-pointer overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-kicap/5 transition duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-kicap/10"
+    >
+      <div className="relative aspect-[4/3] overflow-hidden bg-santan-deep">
+        <img src={plateArt(s.id)} alt="" loading="lazy"
+          className={`size-full object-cover transition duration-500 group-hover:scale-105 ${open ? '' : 'saturate-[.35] opacity-80'}`} />
+        <span className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${open ? 'bg-pandan text-white' : 'bg-white/90 text-kopi'}`}>
+          <span className={`size-1.5 rounded-full ${open ? 'bg-white' : 'bg-kopi-light'}`} />
+          {open ? 'Open now' : 'Closed'}
+        </span>
+        <button
+          aria-label={saved ? 'Remove from my spots' : 'Save spot'}
+          onClick={(e) => { e.stopPropagation(); onSave(); }}
+          className={`absolute right-3 top-3 grid size-9 place-items-center rounded-full shadow-sm backdrop-blur transition active:scale-90 ${saved ? 'bg-sambal text-white' : 'bg-white/90 text-kopi hover:text-sambal'}`}
+        >
+          <Icon name="heart" className={`size-[18px] ${saved ? 'fill-current' : ''}`} />
+        </button>
+        <span className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-full bg-kunyit px-2.5 py-1 text-xs font-bold text-kicap shadow-sm">
+          <Icon name="star" className="size-3.5 fill-current stroke-none" />{s.rating.toFixed(1)}
+        </span>
+      </div>
+      <div className="p-4">
+        <h3 className="line-clamp-1 text-lg font-semibold leading-snug">{s.name}</h3>
+        <p className="mt-0.5 line-clamp-1 text-sm text-kopi">{s.address}, {s.area}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-kopi">
+          <span className="inline-flex items-center gap-1 font-mono"><Icon name="pin" className="size-3.5 text-sambal" />{km(s.distanceKm)}</span>
+          <span className="inline-flex items-center gap-1"><Icon name="clock" className="size-3.5" />{s.status.text}</span>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {s.types.map((t) => (
+            <span key={t} className="rounded-full bg-santan-deep px-2 py-0.5 text-[11px] font-medium text-kopi">{t}</span>
+          ))}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -156,31 +255,36 @@ function LocationBar({ geo }) {
   const ago = geo.pos ? Math.round((Date.now() - geo.pos.at) / 1000) : 0;
   const agoText = ago < 20 ? 'just now' : ago < 90 ? `${ago}s ago` : `${Math.round(ago / 60)} min ago`;
 
+  const primary = 'inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-sambal px-4 text-sm font-semibold text-white shadow-md shadow-sambal/30 transition hover:bg-sambal-deep active:scale-95';
+  const ghost = 'inline-flex h-10 shrink-0 items-center rounded-full border border-kicap/15 px-4 text-sm font-medium text-kopi transition hover:bg-santan-deep';
+
   let text, btn;
   if (geo.state === 'live') {
-    text = <><b>Live location on.</b> Sorted by distance from you. <small>±{Math.round(geo.pos?.accuracy || 0)} m, {agoText}</small></>;
-    btn = <button className="ghost" onClick={() => geo.stop()}>Stop</button>;
+    text = <><b className="font-semibold text-kicap">Live location on.</b> Sorted by distance from you. <span className="font-mono text-xs text-kopi-light">±{Math.round(geo.pos?.accuracy || 0)} m, {agoText}</span></>;
+    btn = <button className={ghost} onClick={() => geo.stop()}>Stop</button>;
   } else if (geo.state === 'asking') {
-    text = <>Finding you. If your browser asks, tap <b>Allow</b>.</>;
-    btn = <button className="ghost" onClick={() => geo.stop()}>Cancel</button>;
+    text = <>Finding you. If your browser asks, tap <b className="font-semibold text-kicap">Allow</b>.</>;
+    btn = <button className={ghost} onClick={() => geo.stop()}>Cancel</button>;
   } else if (geo.state === 'denied') {
-    text = <>Location is off for this page, so we're using <b>KL city centre</b>. Allow it in your browser's site settings, or pick an area above.</>;
-    btn = <button onClick={geo.start}>Try again</button>;
+    text = <>Location is off for this page, so we're using <b className="font-semibold text-kicap">KL city centre</b>. Allow it in your browser's site settings, or pick an area.</>;
+    btn = <button className={primary} onClick={geo.start}>Try again</button>;
   } else if (geo.state === 'error') {
-    text = <>No fix on you yet, so we're using <b>KL city centre</b> for now. Still trying.</>;
-    btn = <button className="ghost" onClick={() => geo.stop()}>Stop</button>;
+    text = <>No fix on you yet, so we're using <b className="font-semibold text-kicap">KL city centre</b> for now. Still trying.</>;
+    btn = <button className={ghost} onClick={() => geo.stop()}>Stop</button>;
   } else if (geo.state === 'unsupported') {
-    text = <>This browser can't share your location, so we're using <b>KL city centre</b>.</>;
+    text = <>This browser can't share your location, so we're using <b className="font-semibold text-kicap">KL city centre</b>.</>;
   } else {
-    text = <>Showing spots around <b>KL city centre</b>. Turn on your location to see what's near you.</>;
-    btn = <button onClick={geo.start}><Icon name="locate" />Use my location</button>;
+    text = <>Showing spots around <b className="font-semibold text-kicap">KL city centre</b>. Share your location to see what's near you.</>;
+    btn = <button className={primary} onClick={geo.start}><Icon name="locate" />Use my location</button>;
   }
   const on = geo.state === 'live' || geo.state === 'asking';
   return (
-    <div className="locbar">
-      <i className={`dot ${on ? '' : 'off'}`} />
-      <span>{text}</span>
-      {btn}
+    <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-kunyit-soft px-4 py-3 text-sm text-kopi ring-1 ring-kunyit/30 sm:flex-row sm:items-center">
+      <p className="flex flex-1 items-start gap-3 sm:items-center">
+        <span className={`mt-1.5 size-2.5 shrink-0 rounded-full sm:mt-0 ${on ? 'live-dot bg-pandan' : 'bg-kopi-light'}`} />
+        <span>{text}</span>
+      </p>
+      {btn && <div className="pl-5.5 sm:pl-0">{btn}</div>}
     </div>
   );
 }
