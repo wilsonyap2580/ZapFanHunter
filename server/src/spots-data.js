@@ -51,7 +51,8 @@ export const SPOTS = [
   ['Restoran Sun Gee 胜记杂菜饭', 'Cheras', 'Jalan Bunga Tanjung 10A, Taman Muda', 3.1185052, 101.7624565, 3.7, 485, 'CE', '10:40-21:00', 'ChIJraVr3oQ2zDER65FgW-Y1O0s'],
 ];
 
-// A few sample diner notes so the reviews section isn't empty on first run.
+// Made-up sample diner notes so the notes section isn't empty in development.
+// They are stored with is_sample = 1, shown with a "Sample note" badge, and skipped in production.
 export const SAMPLE_REVIEWS = [
   ['Aisha', 5, 'Plenty of dishes, fried chicken goes fast. Go before 12.'],
   ['Kevin', 4, 'Fair prices and the curry vegetables are really good.'],

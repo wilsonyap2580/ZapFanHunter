@@ -11,15 +11,17 @@ export function seed() {
     db.exec("DELETE FROM reviews; DELETE FROM spots; DELETE FROM sqlite_sequence WHERE name IN ('spots','reviews');");
     const insSpot = db.prepare(`INSERT INTO spots (name, area, address, lat, lng, rating, review_count, types, hours, place_id)
                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-    const insReview = db.prepare(`INSERT INTO reviews (spot_id, author, stars, body, created_at)
-                                  VALUES (?, ?, ?, ?, datetime('now', ?))`);
+    const insReview = db.prepare(`INSERT INTO reviews (spot_id, place_id, author, stars, body, is_sample, created_at)
+                                  VALUES (?, ?, ?, ?, ?, 1, datetime('now', ?))`);
+    // Sample notes are made up, so they are flagged as demo data and never seeded in production.
+    const withSamples = process.env.NODE_ENV !== 'production';
     SPOTS.forEach(([name, area, address, lat, lng, rating, count, codes, hours, placeId], i) => {
       const types = codes.split('').map((c) => TYPE_NAMES[c]).join(',');
       const { lastInsertRowid: id } = insSpot.run(name, area, address, lat, lng, rating, count, types, hours, placeId);
-      // Two sample reviews per spot, rotated so neighbours differ.
-      for (let k = 0; k < 2; k++) {
+      // Two sample notes per spot, rotated so neighbours differ.
+      for (let k = 0; withSamples && k < 2; k++) {
         const [author, stars, body] = SAMPLE_REVIEWS[(i * 2 + k) % SAMPLE_REVIEWS.length];
-        insReview.run(id, author, stars, body, `-${(i % 9) + k * 4 + 1} days`);
+        insReview.run(id, placeId, author, stars, body, `-${(i % 9) + k * 4 + 1} days`);
       }
     });
     db.exec('COMMIT');

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, km, mapsUrl, wazeUrl, directionsUrl } from './api.js';
+import { api, km, mapsUrl, wazeUrl, directionsUrl, artSeed } from './api.js';
 import { plateArt } from './plate.js';
 import Icon from './Icon.jsx';
 
@@ -38,13 +38,17 @@ export default function SpotSheet({ id, center, live, saved, onToggleSave, onClo
           <Icon name="x" className="size-5" />
         </button>
 
-        <figure className="relative">
-          <img src={plateArt(id)} alt="" className="aspect-[16/10] w-full object-cover" />
-          <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-santan to-transparent" />
-          <figcaption className="absolute left-4 top-4 rounded-full bg-kicap/70 px-3 py-1 text-xs text-white backdrop-blur">
-            Illustration of a typical plate
-          </figcaption>
-        </figure>
+        {spot?.photos?.length ? (
+          <PhotoStrip photos={spot.photos} name={spot.name} />
+        ) : (
+          <figure className="relative">
+            <img src={plateArt(artSeed(id))} alt="" className="aspect-[16/10] w-full object-cover" />
+            <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-santan to-transparent" />
+            <figcaption className="absolute left-4 top-4 rounded-full bg-kicap/70 px-3 py-1 text-xs text-white backdrop-blur">
+              Illustration of a typical plate
+            </figcaption>
+          </figure>
+        )}
 
         {error && <p className="px-5 text-sambal-deep">{error}</p>}
         {!spot && !error && <p className="px-5 text-kopi">Loading…</p>}
@@ -62,9 +66,17 @@ export default function SpotSheet({ id, center, live, saved, onToggleSave, onClo
 
             <h2 className="mt-3 font-display text-3xl font-bold leading-tight tracking-tight">{spot.name}</h2>
             <p className="mt-1 flex items-start gap-1.5 text-kopi"><Icon name="pin" className="mt-0.5 size-4 text-sambal" />{spot.address}, {spot.area}</p>
+            {spot.limited && (
+              <p className="mt-3 rounded-2xl bg-kunyit-soft px-4 py-3 text-sm text-kopi ring-1 ring-kunyit/30">
+                {spot.limited === 'daily-limit'
+                  ? "Today's Google lookups are used up, so this shows the saved info from the list."
+                  : "Google Maps can't be reached right now, so this shows the saved info from the list."}
+                {' '}Google reviews and more photos will be back {spot.limited === 'daily-limit' ? 'tomorrow' : 'soon'}.
+              </p>
+            )}
 
             <div className="mt-5 grid grid-cols-3 divide-x divide-kicap/10 rounded-2xl bg-white ring-1 ring-kicap/5">
-              <Stat value={<span className="inline-flex items-center gap-1"><Icon name="star" className="size-4 fill-kunyit stroke-none" />{spot.rating.toFixed(1)}</span>} label="Rating" />
+              <Stat value={<span className="inline-flex items-center gap-1"><Icon name="star" className="size-4 fill-kunyit stroke-none" />{spot.reviewCount ? spot.rating.toFixed(1) : 'New'}</span>} label="Rating" />
               <Stat value={km(spot.distanceKm)} label={live ? 'From you' : 'From KL centre'} />
               <Stat value={spot.reviewCount.toLocaleString('en-MY')} label="Google reviews" />
             </div>
@@ -85,6 +97,7 @@ export default function SpotSheet({ id, center, live, saved, onToggleSave, onClo
 
             <SectionTitle icon="clock">Opening hours</SectionTitle>
             <div className="rounded-2xl bg-white p-4 ring-1 ring-kicap/5">
+              {spot.hours.length === 0 && <p className="px-2 py-1.5 text-sm text-kopi">Hours not listed. Check Google Maps before you go.</p>}
               {spot.hours.map((h) => {
                 const isToday = h.dayIndex === today;
                 return (
@@ -96,36 +109,123 @@ export default function SpotSheet({ id, center, live, saved, onToggleSave, onClo
               })}
             </div>
 
-            <SectionTitle icon="flame">What people say</SectionTitle>
+            {spot.googleReviews?.length > 0 && (
+              <>
+                <SectionTitle icon="star">Google reviews</SectionTitle>
+                <div className="space-y-2" data-testid="google-reviews">
+                  {spot.googleReviews.map((r) => (
+                    <div key={r.id} className="rounded-2xl bg-white p-4 ring-1 ring-kicap/5">
+                      <div className="flex items-center gap-3">
+                        {r.author?.photo
+                          ? <img src={r.author.photo} alt="" referrerPolicy="no-referrer" className="size-9 shrink-0 rounded-full bg-santan-deep object-cover" />
+                          : <Avatar name={r.author?.name} />}
+                        <div className="min-w-0 flex-1">
+                          {r.author?.uri
+                            ? <a href={r.author.uri} target="_blank" rel="noopener noreferrer" className="block truncate font-semibold hover:underline">{r.author.name}</a>
+                            : <p className="truncate font-semibold">{r.author?.name || 'Google user'}</p>}
+                          <p className="font-mono text-xs text-kopi-light">{r.when}</p>
+                        </div>
+                        <Stars n={r.stars} />
+                      </div>
+                      {r.text && <p className="mt-2 whitespace-pre-line text-[15px] leading-relaxed text-kopi">{r.text}</p>}
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-kopi-light">
+                  <span>Reviews from Google Maps</span>
+                  {spot.googleMapsUri && (
+                    <a href={spot.googleMapsUri} target="_blank" rel="noopener noreferrer" className="font-semibold text-sambal hover:underline">See all on Google Maps</a>
+                  )}
+                </p>
+              </>
+            )}
+
+            <SectionTitle icon="flame">ZapFan diner notes</SectionTitle>
             <ReviewForm spotId={spot.id} onAdded={(r) => setSpot((s) => ({ ...s, reviews: [r, ...s.reviews] }))} />
             <div className="mt-3 space-y-2">
               {spot.reviews.map((r) => (
                 <div key={r.id} className="rounded-2xl bg-white p-4 ring-1 ring-kicap/5">
                   <div className="flex items-center gap-3">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-kunyit-soft font-display font-bold text-kicap">{r.author.charAt(0).toUpperCase()}</span>
+                    <Avatar name={r.author} />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold">{r.author}</p>
+                      <p className="flex items-center gap-2 font-semibold">
+                        <span className="truncate">{r.author}</span>
+                        {r.sample && (
+                          <span title="Made-up example note for development, not a real review"
+                            className="shrink-0 rounded-full bg-santan-deep px-2 py-0.5 text-[11px] font-medium text-kopi">Sample note</span>
+                        )}
+                      </p>
                       <p className="font-mono text-xs text-kopi-light">
                         {new Date(r.createdAt.replace(' ', 'T') + 'Z').toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </p>
                     </div>
-                    <span className="text-sm tracking-wider text-kunyit" aria-label={`${r.stars} out of 5`}>
-                      {'★'.repeat(r.stars)}<span className="text-kicap/15">{'★'.repeat(5 - r.stars)}</span>
-                    </span>
+                    <Stars n={r.stars} />
                   </div>
                   <p className="mt-2 text-[15px] leading-relaxed text-kopi">{r.body}</p>
+                  {r.photo && (
+                    <a href={r.photo} target="_blank" rel="noopener noreferrer" className="mt-3 block overflow-hidden rounded-xl">
+                      <img src={r.photo} alt={`Photo from ${r.author}`} loading="lazy" className="max-h-72 w-full object-cover" />
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
 
             <p className="mt-6 text-xs leading-relaxed text-kopi-light">
-              Shop info from Google Maps, saved 30 Oct 2026. Hours do change, so a quick check before you head out never hurts.
-              Diner notes are stored in your local ZapFan database.
+              {spot.source === 'google' || spot.photos?.length
+                ? 'Place info, photos and reviews from Google Maps, fetched live. '
+                : 'Shop info from Google Maps, saved 30 Oct 2026. '}
+              Hours do change, so a quick check before you head out never hurts.
+              Diner notes and their photos are stored in your local ZapFan database.
             </p>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function PhotoStrip({ photos, name }) {
+  return (
+    <div className="relative">
+      <div className="no-scrollbar flex snap-x snap-mandatory overflow-x-auto" data-testid="photo-strip" aria-label={`Photos of ${name}`}>
+        {photos.map((p, i) => (
+          <figure key={p.url} className="relative w-full shrink-0 snap-center">
+            <a href={p.url} target="_blank" rel="noopener noreferrer">
+              <img src={p.thumb} srcSet={`${p.thumb} 480w, ${p.url} 1200w`} sizes="(min-width: 672px) 672px, 100vw"
+                alt={`Photo ${i + 1} of ${photos.length} of ${name}`} loading={i === 0 ? 'eager' : 'lazy'}
+                className="aspect-[16/10] w-full bg-santan-deep object-cover" />
+            </a>
+            <figcaption className="absolute bottom-10 left-4 max-w-[70%] truncate rounded-full bg-kicap/70 px-3 py-1 text-xs text-white backdrop-blur">
+              {p.author?.name
+                ? <>Photo: {p.author.uri ? <a href={p.author.uri} target="_blank" rel="noopener noreferrer" className="underline">{p.author.name}</a> : p.author.name}</>
+                : 'Photo from Google Maps'}
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+      <span className="pointer-events-none absolute left-4 top-4 rounded-full bg-kicap/70 px-3 py-1 font-mono text-xs text-white backdrop-blur">
+        {photos.length} {photos.length === 1 ? 'photo' : 'photos'}{photos.length > 1 ? ', swipe for more' : ''}
+      </span>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-santan to-transparent" />
+    </div>
+  );
+}
+
+function Avatar({ name }) {
+  return (
+    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-kunyit-soft font-display font-bold text-kicap">
+      {(name || '?').charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
+function Stars({ n }) {
+  const s = Math.max(0, Math.min(5, Math.round(n || 0)));
+  return (
+    <span className="shrink-0 text-sm tracking-wider text-kunyit" aria-label={`${s} out of 5`}>
+      {'★'.repeat(s)}<span className="text-kicap/15">{'★'.repeat(5 - s)}</span>
+    </span>
   );
 }
 
@@ -153,17 +253,43 @@ function ReviewForm({ spotId, onAdded }) {
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [photo, setPhoto] = useState(null);
+  const [preview, setPreview] = useState('');
+  const [fileKey, setFileKey] = useState(0); // remounts the file input to clear it
+
+  useEffect(() => {
+    if (!photo) { setPreview(''); return undefined; }
+    const url = URL.createObjectURL(photo);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photo]);
+
+  function pickPhoto(e) {
+    const f = e.target.files?.[0] || null;
+    setMsg('');
+    if (f && !['image/jpeg', 'image/png', 'image/webp'].includes(f.type)) {
+      setMsg('Photo must be a JPEG, PNG or WebP image.');
+      return clearPhoto();
+    }
+    if (f && f.size > 5 * 1024 * 1024) {
+      setMsg('Photo must be 5 MB or smaller.');
+      return clearPhoto();
+    }
+    setPhoto(f);
+  }
+  function clearPhoto() { setPhoto(null); setFileKey((k) => k + 1); }
 
   async function submit(e) {
     e.preventDefault();
     setBusy(true);
     setMsg('');
     try {
-      const r = await api.addReview(spotId, { author, stars, body });
+      const r = await api.addReview(spotId, { author, stars, body, photo });
       try { localStorage.setItem('zf.name', author); } catch {}
       onAdded(r);
       setBody('');
       setStars(0);
+      clearPhoto();
     } catch (err) {
       setMsg(err.message);
     } finally {
@@ -183,7 +309,21 @@ function ReviewForm({ spotId, onAdded }) {
         ))}
       </div>
       <input value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="Your name" maxLength={40} aria-label="Your name" className={field} />
-      <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Which lauk is a must? Curry chicken? Sambal sotong?" maxLength={600} rows={3} aria-label="Your note" className={`${field} resize-y`} />
+      <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="What did you order? How was it?" maxLength={600} rows={3} aria-label="Your note" className={`${field} resize-y`} />
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-dashed border-kicap/20 px-3.5 text-sm font-medium text-kopi transition hover:border-sambal/50 hover:text-kicap focus-within:ring-4 focus-within:ring-sambal/10">
+          <Icon name="camera" className="size-4" />
+          {photo ? 'Change photo' : 'Add a photo of your plate'}
+          <input key={fileKey} type="file" accept="image/jpeg,image/png,image/webp" onChange={pickPhoto} aria-label="Photo of your plate" className="sr-only" />
+        </label>
+        {preview && (
+          <span className="inline-flex items-center gap-2">
+            <img src={preview} alt="Selected photo preview" className="size-12 rounded-lg object-cover ring-1 ring-kicap/10" />
+            <button type="button" onClick={clearPhoto} className="text-xs font-semibold text-sambal hover:underline">Remove</button>
+          </span>
+        )}
+        <small className="text-xs text-kopi-light">Optional. JPEG, PNG or WebP, up to 5 MB.</small>
+      </div>
       {msg && <small className="text-sambal-deep">{msg}</small>}
       <button disabled={busy || !author.trim() || !body.trim() || !stars} className={`${btnPrimary} disabled:opacity-45 disabled:shadow-none`}>
         {busy ? 'Posting…' : 'Post note'}

@@ -1,25 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, km } from './api.js';
+import { api, km, artSeed } from './api.js';
 import { plateArt } from './plate.js';
 import { useLiveLocation, useSaved } from './useLocation.js';
 import Icon from './Icon.jsx';
 import SpotSheet from './SpotSheet.jsx';
+import SpinWheel from './SpinWheel.jsx';
 
 const KL = { lat: 3.139, lng: 101.687 };
-const QUICK_RADII = [2, 5, 10, 20];
+const QUICK_RADII = [2, 5, 10];
+const MAX_RADIUS = 10;
+const PAGE_SIZE = 6;
 
 function useDebounced(value, ms) {
   const [v, setV] = useState(value);
   useEffect(() => { const t = setTimeout(() => setV(value), ms); return () => clearTimeout(t); }, [value, ms]);
   return v;
-}
-
-function greeting() {
-  const h = new Date(Date.now() + 8 * 3600 * 1000).getUTCHours();
-  if (h < 11) return 'Sarapan time.';
-  if (h < 15) return 'Lunch is calling.';
-  if (h < 18) return 'Tea time, or early dinner?';
-  return 'Makan malam, jom.';
 }
 
 const chip = (on) =>
@@ -40,9 +35,12 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [openId, setOpenId] = useState(null);
+  const [spinOpen, setSpinOpen] = useState(false);
   const dq = useDebounced(q, 250);
 
   const center = geo.pos ? { lat: geo.pos.lat, lng: geo.pos.lng } : KL;
+  // Saved spots can be anywhere (Google places too), so the My spots tab asks for them by id.
+  const savedIds = tab === 'saved' ? saved.join(',') : '';
 
   useEffect(() => { api.areas().then(setAreas).catch(() => {}); }, []);
 
@@ -51,19 +49,29 @@ export default function App() {
     setLoading(true);
     api
       .spots(tab === 'saved'
-        ? { lat: center.lat, lng: center.lng }
+        ? { lat: center.lat, lng: center.lng, ids: savedIds || undefined }
         : { lat: center.lat, lng: center.lng, radius, q: dq, area, open: openOnly ? 1 : undefined })
       .then((d) => { if (live) { setData(d); setError(''); } })
       .catch((e) => live && setError(e.message))
       .finally(() => live && setLoading(false));
     return () => { live = false; };
-  }, [center.lat, center.lng, radius, dq, area, openOnly, tab]);
+  }, [center.lat, center.lng, radius, dq, area, openOnly, tab, savedIds]);
 
   const list = useMemo(
     () => (tab === 'saved' ? data.spots.filter((s) => saved.includes(s.id)) : data.spots),
     [tab, data.spots, saved]
   );
   const openCount = list.filter((s) => s.status.open).length;
+
+  // Six cards per page; go back to page 1 whenever the results change.
+  const [page, setPage] = useState(0);
+  useEffect(() => { setPage(0); }, [list]);
+  const pageCount = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  const shown = list.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const goTo = (p) => {
+    setPage(p);
+    document.getElementById('results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   const whereLabel = area || (geo.pos ? 'you' : 'KL city centre');
 
   return (
@@ -76,17 +84,10 @@ export default function App() {
           className="pointer-events-none absolute -right-20 -top-16 w-56 rotate-12 rounded-full opacity-35 shadow-2xl shadow-sambal-deep/60 sm:-right-6 sm:-top-10 sm:w-96 sm:opacity-95 [clip-path:circle(45%)]"
         />
         <div className="relative mx-auto max-w-5xl px-4 pb-20 pt-8 sm:pb-24 sm:pt-12">
-          <div className="flex items-center gap-2">
-            <img src="/favicon.svg" alt="" className="size-7 rounded-full ring-2 ring-santan/80" />
-            <span className="font-display text-xl font-bold tracking-tight">ZapFan</span>
-          </div>
-          <h1 className="mt-6 max-w-md font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl">
-            {greeting()}<br />
-            <span className="text-kunyit">Find a plate nearby.</span>
+          <h1 className="flex max-w-md items-center gap-3 font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl">
+            <img src="/favicon.svg" alt="" className="size-10 shrink-0 rounded-full ring-2 ring-santan/80 sm:size-12" />
+            ZapFan in your Area
           </h1>
-          <p className="mt-3 max-w-sm text-santan/85">
-            Zap fan, chap fan and nasi campur spots across Klang Valley and Seremban. Pick your lauk, pay by the plate.
-          </p>
         </div>
       </header>
 
@@ -118,7 +119,7 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <input type="range" min="1" max="30" value={radius} onChange={(e) => setRadius(Number(e.target.value))}
+            <input type="range" min="1" max={MAX_RADIUS} value={radius} onChange={(e) => setRadius(Number(e.target.value))}
               aria-label="Search radius in km" disabled={!!(dq || area)} className="mt-2 w-full disabled:opacity-40" />
 
             <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-5 sm:px-5">
@@ -143,7 +144,7 @@ export default function App() {
         <LocationBar geo={geo} />
 
         {/* Result summary */}
-        <div className="mb-4 mt-8 flex items-end justify-between gap-4">
+        <div id="results" className="mb-4 mt-8 flex scroll-mt-4 items-end justify-between gap-4">
           <h2 className="font-display text-2xl font-bold leading-tight">
             {error ? 'Hmm, no connection' : tab === 'saved'
               ? `${list.length} saved ${list.length === 1 ? 'spot' : 'spots'}`
@@ -155,6 +156,21 @@ export default function App() {
             </p>
           )}
         </div>
+        {!error && (data.source || shown.length > 0) && (
+          <div className="-mt-2 mb-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-kopi-light" data-testid="source">
+              {data.source === 'google'
+                ? 'Live from Google Maps.'
+                : data.fallback
+                  ? "Google Maps isn't responding, so this is the ZapFan saved list."
+                  : data.source ? 'From the ZapFan saved list.' : ''}
+            </p>
+            <button onClick={() => setSpinOpen(true)}
+              className="inline-flex h-9 items-center gap-2 rounded-full bg-kunyit px-4 text-sm font-semibold text-kicap shadow-sm transition hover:brightness-105 active:scale-95">
+              <Icon name="wheel" />Can't decide? Spin
+            </button>
+          </div>
+        )}
 
         {error && (
           <div className="rounded-2xl bg-sambal-soft p-4 text-sm text-sambal-deep">
@@ -164,20 +180,34 @@ export default function App() {
 
         {/* Cards */}
         <div className={`grid gap-4 transition-opacity sm:grid-cols-2 lg:grid-cols-3 ${loading ? 'opacity-60' : ''}`}>
-          {list.map((s) => (
+          {shown.map((s) => (
             <SpotCard key={s.id} s={s} saved={saved.includes(s.id)} onSave={() => toggle(s.id)} onOpen={() => setOpenId(s.id)} />
           ))}
         </div>
+
+        {pageCount > 1 && (
+          <nav aria-label="Pages" className="mt-6 flex items-center justify-center gap-3">
+            <button onClick={() => goTo(page - 1)} disabled={page === 0}
+              className="h-10 rounded-full border border-kicap/15 bg-white px-4 text-sm font-medium text-kopi transition hover:bg-santan-deep disabled:opacity-40 disabled:hover:bg-white">
+              Previous
+            </button>
+            <span className="font-mono text-sm text-kopi">{page + 1} / {pageCount}</span>
+            <button onClick={() => goTo(page + 1)} disabled={page >= pageCount - 1}
+              className="h-10 rounded-full bg-sambal px-4 text-sm font-semibold text-white shadow-md shadow-sambal/30 transition hover:bg-sambal-deep disabled:opacity-40 disabled:shadow-none disabled:hover:bg-sambal">
+              Next
+            </button>
+          </nav>
+        )}
 
         {!loading && !error && list.length === 0 && (
           <div className="rounded-3xl border-2 border-dashed border-kicap/10 bg-white/60 px-6 py-12 text-center">
             <img src={plateArt(3)} alt="" className="mx-auto size-24 rounded-full opacity-70 grayscale-[.4]" />
             <p className="mt-4 font-display text-xl font-bold">
-              {tab === 'saved' ? 'No saved spots yet' : 'Nothing on the plate here'}
+              {tab === 'saved' ? 'No saved spots yet' : 'No Chinese mixed rice found'}
             </p>
             <p className="mx-auto mt-1 max-w-xs text-sm text-kopi">
               {tab === 'saved'
-                ? 'Tap the heart on any spot to keep it here for your next makan run.'
+                ? 'Tap the heart on any spot to keep it here.'
                 : `No spots ${dq ? `for “${dq}”` : `within ${radius} km`}${openOnly ? ' open right now' : ''}. Try a wider radius or another area.`}
             </p>
           </div>
@@ -200,6 +230,14 @@ export default function App() {
         </div>
       </nav>
 
+      {spinOpen && (
+        <SpinWheel
+          spots={shown.map((s) => ({ id: s.id, name: s.name }))}
+          onOpenSpot={(id) => { setSpinOpen(false); setOpenId(id); }}
+          onClose={() => setSpinOpen(false)}
+        />
+      )}
+
       {openId !== null && (
         <SpotSheet id={openId} center={center} live={!!geo.pos} saved={saved.includes(openId)} onToggleSave={() => toggle(openId)} onClose={() => setOpenId(null)} />
       )}
@@ -215,7 +253,8 @@ function SpotCard({ s, saved, onSave, onOpen }) {
       className="group cursor-pointer overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-kicap/5 transition duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-kicap/10"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-santan-deep">
-        <img src={plateArt(s.id)} alt="" loading="lazy"
+        <img src={s.photo || plateArt(artSeed(s.id))} alt={s.photo ? `Photo of ${s.name}` : ''} loading="lazy"
+          onError={(e) => { const art = plateArt(artSeed(s.id)); if (e.currentTarget.src !== art) e.currentTarget.src = art; }}
           className={`size-full object-cover transition duration-500 group-hover:scale-105 ${open ? '' : 'saturate-[.35] opacity-80'}`} />
         <span className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${open ? 'bg-pandan text-white' : 'bg-white/90 text-kopi'}`}>
           <span className={`size-1.5 rounded-full ${open ? 'bg-white' : 'bg-kopi-light'}`} />
@@ -229,7 +268,7 @@ function SpotCard({ s, saved, onSave, onOpen }) {
           <Icon name="heart" className={`size-[18px] ${saved ? 'fill-current' : ''}`} />
         </button>
         <span className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-full bg-kunyit px-2.5 py-1 text-xs font-bold text-kicap shadow-sm">
-          <Icon name="star" className="size-3.5 fill-current stroke-none" />{s.rating.toFixed(1)}
+          <Icon name="star" className="size-3.5 fill-current stroke-none" />{s.reviewCount ? s.rating.toFixed(1) : 'New'}
         </span>
       </div>
       <div className="p-4">

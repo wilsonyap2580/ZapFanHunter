@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch --disable-warning=ExperimentalWarning src/index.js",
-    "start": "node --disable-warning=ExperimentalWarning src/index.js",
+    "dev": "node --watch --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/index.js",
+    "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/index.js",
     "seed": "node --disable-warning=ExperimentalWarning src/seed.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "multer": "^2.0.2"
   }
 }
