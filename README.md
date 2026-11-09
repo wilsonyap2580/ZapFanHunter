@@ -1,6 +1,6 @@
 # ZapFan in your Area
 
-Find Chinese mixed rice (杂饭 / economy rice) spots near you in Malaysia.
+Find Chinese mixed rice (杂饭 / economy rice) spots near you in Malaysia. A mini fun project (repo: ZapFanHunter).
 
 - **web/**: React + Vite frontend (search within 10 km, area chips, "open now", live location, saved spots, diner notes, 6 cards per page, and a "Can't decide? Spin" wheel)
 - **server/**: Express API on `http://localhost:4000`
