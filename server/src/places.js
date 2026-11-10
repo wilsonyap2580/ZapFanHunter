@@ -2,7 +2,7 @@
 // Results are saved in the database for PLACES_CACHE_HOURS to keep Google calls (and cost) down.
 // The API key never leaves the server.
 import { formatTime, nowInMalaysia } from './hours.js';
-import { one, run } from './db.js';
+import { all, one, run } from './db.js';
 
 const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const base = () => (process.env.PLACES_API_BASE || 'https://places.googleapis.com/v1').replace(/\/$/, '');
@@ -12,14 +12,20 @@ export const placesEnabled = () => !!key();
 export const PLACE_ID_RE = /^[A-Za-z0-9_-]{10,300}$/;
 export const PHOTO_NAME_RE = /^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/;
 
-// Every Google search looks for Chinese mixed rice under each of these names (one call each).
-// A typed search (area or shop) is added on to each.
-const SEARCH_TERMS = ['chinese mixed rice', '杂饭', 'economy rice'];
+// Browsing nearby looks for Chinese mixed rice under each of these names (one Google call each).
+// Shops are listed under many names, so a few more phrases find a lot more of them.
+const SEARCH_TERMS = ['chinese mixed rice', 'economy rice', '杂饭', 'chap fan', '经济饭'];
+// A typed search (area or shop name) runs as typed, plus with these in front.
+const QUERY_TERMS = ['', 'chinese mixed rice', '杂饭'];
+// Names that say "mixed rice" in any of the usual ways.
+const MIXED_RICE_NAME = /mixed rice|mix rice|economy rice|chap ?fan|zap ?fan|杂饭|雜飯|经济|經濟|菜饭|什饭|快餐/i;
+// Google types that mean a place sells food.
+const isFoodPlace = (place) => (place.types || []).some((t) => /restaurant|^food|meal_takeaway|food_court|cafe|diner/.test(t));
 export const TYPE_LABEL = 'Chinese Mixed Rice';
 
 const SEARCH_FIELDS = [
   'id', 'displayName', 'shortFormattedAddress', 'formattedAddress', 'location', 'rating',
-  'userRatingCount', 'regularOpeningHours', 'photos', 'businessStatus',
+  'userRatingCount', 'regularOpeningHours', 'photos', 'businessStatus', 'types', 'primaryType',
 ].map((f) => `places.${f}`).join(',');
 const DETAIL_FIELDS = [
   'id', 'displayName', 'shortFormattedAddress', 'formattedAddress', 'location', 'rating', 'userRatingCount',
@@ -121,6 +127,37 @@ async function call(path, { method = 'GET', fields, body } = {}) {
 }
 
 // ---- search ------------------------------------------------------------------------
+/** The box around a circle, for Google's locationRestriction (which only takes rectangles). */
+export function boundingBox(lat, lng, radiusM) {
+  const dLat = radiusM / 111320;
+  const dLng = radiusM / (111320 * Math.cos((lat * Math.PI) / 180));
+  return {
+    low: { latitude: lat - dLat, longitude: lng - dLng },
+    high: { latitude: lat + dLat, longitude: lng + dLng },
+  };
+}
+
+/** Runs several text searches at once and keeps each place once. */
+async function searchMany(queries, where) {
+  const settled = await Promise.allSettled(queries.map((textQuery) =>
+    call('/places:searchText', {
+      method: 'POST',
+      fields: SEARCH_FIELDS,
+      body: { textQuery, pageSize: 20, languageCode: 'en', regionCode: 'MY', ...where },
+    })));
+  if (settled.every((s) => s.status === 'rejected')) throw settled[0].reason;
+  // The same shop often matches more than one phrase; keep it once.
+  const byId = new Map();
+  settled.forEach((s, i) => {
+    if (s.status !== 'fulfilled') return;
+    for (const place of s.value.places || []) {
+      if (place.businessStatus === 'CLOSED_PERMANENTLY' || byId.has(place.id)) continue;
+      byId.set(place.id, { place, query: queries[i] });
+    }
+  });
+  return { found: [...byId.values()], partial: settled.some((s) => s.status === 'rejected') };
+}
+
 /** Returns [{ place, types: string[] }] for places near lat/lng. */
 // "Open now" is filtered by the caller from the weekly hours, not asked of Google,
 // so one saved search serves both views and stays right as the day goes on.
@@ -129,36 +166,61 @@ export async function searchNearby({ lat, lng, radiusKm, q = '' }) {
   // Round to about 1 km so nearby users and small moves reuse the same saved search.
   const cLat = Math.round(lat * 100) / 100;
   const cLng = Math.round(lng * 100) / 100;
-  // "v2": searches saved before weekly hours and photos were requested are ignored.
-  const k = ['search-v2', cLat.toFixed(2), cLng.toFixed(2), radius, q.toLowerCase()].join('|');
+  // "v3": more phrases, and browsing is limited to the area instead of only preferring it.
+  const k = ['search-v3', cLat.toFixed(2), cLng.toFixed(2), radius, q.toLowerCase()].join('|');
   return cached(k, async () => {
-    const settled = await Promise.allSettled(SEARCH_TERMS.map((term) =>
-      call('/places:searchText', {
-        method: 'POST',
-        fields: SEARCH_FIELDS,
-        body: {
-          textQuery: q ? `${term} ${q}` : term,
-          pageSize: 20,
-          languageCode: 'en',
-          regionCode: 'MY',
-          locationBias: { circle: { center: { latitude: cLat, longitude: cLng }, radius } },
-        },
-      })));
-    if (settled.every((s) => s.status === 'rejected')) throw settled[0].reason;
-    // The same shop often matches more than one term; keep it once.
-    const byId = new Map();
-    for (const s of settled) {
-      if (s.status !== 'fulfilled') continue;
-      for (const place of s.value.places || []) {
-        if (place.businessStatus === 'CLOSED_PERMANENTLY' || byId.has(place.id)) continue;
-        byId.set(place.id, { place, types: [TYPE_LABEL] });
-      }
+    let result;
+    if (!q) {
+      // Browsing: only places inside the area, so none of the 20 per phrase get thrown away later.
+      result = await searchMany(SEARCH_TERMS, { locationRestriction: { rectangle: boundingBox(cLat, cLng, radius) } });
+    } else {
+      // A typed search runs as typed (finds a shop by name even if Google doesn't call it mixed rice)
+      // and with "mixed rice" in front (finds shops in a typed area).
+      const needle = q.toLowerCase();
+      result = await searchMany(QUERY_TERMS.map((t) => (t ? `${t} ${q}` : q)),
+        { locationBias: { circle: { center: { latitude: cLat, longitude: cLng }, radius } } });
+      // The as-typed search can return any place; keep eateries whose name matches it or says mixed rice.
+      result.found = result.found.filter(({ place, query }) => {
+        if (query !== q) return true;
+        const name = place.displayName?.text || '';
+        return isFoodPlace(place) && (name.toLowerCase().includes(needle) || MIXED_RICE_NAME.test(name));
+      });
     }
-    const found = [...byId.values()];
-    // If some keywords failed, show what we got but don't save it, so the next visit retries.
-    if (settled.some((s) => s.status === 'rejected')) found.dontSave = true;
+    const found = result.found.map(({ place }) => ({ place, types: [TYPE_LABEL] }));
+    // If some searches failed, show what we got but don't save it, so the next visit retries.
+    if (result.partial) found.dontSave = true;
     return found;
   });
+}
+
+/**
+ * Up to 5 eateries matching a shop name near lat/lng, for "Add a missing shop".
+ * Each is saved under cand|<id>, so only places Google really returned can be added.
+ */
+export async function findCandidates(text, lat, lng) {
+  const k = ['cands', (Math.round(lat * 100) / 100).toFixed(2), (Math.round(lng * 100) / 100).toFixed(2), text.toLowerCase()].join('|');
+  const list = await cached(k, async () => {
+    const { found } = await searchMany([text], { locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 30000 } } });
+    return found.map(({ place }) => place).filter(isFoodPlace).slice(0, 5);
+  });
+  await Promise.all(list.map((place) => writeCache(`cand|${place.id}`, JSON.stringify(place))));
+  return list;
+}
+
+/** A place offered by findCandidates in the last few days, or null. Never calls Google. */
+export async function candidatePlace(id) {
+  const row = await readCache(`cand|${id}`);
+  return row && Date.now() - row.fetched_at < CACHE_MS ? JSON.parse(row.value) : null;
+}
+
+/** Keeps a user-added shop's Google info (name, hours, photos) for showing it later. */
+export const saveAddedPlace = (place) => writeCache(`added|${place.id}`, JSON.stringify(place));
+
+/** Saved Google info for user-added shops, by place ID. */
+export async function addedPlaces(ids) {
+  if (!ids.length) return [];
+  const rows = await all(`SELECT value FROM places_cache WHERE key IN (${ids.map(() => '?').join(',')})`, ids.map((id) => `added|${id}`));
+  return rows.map((r) => JSON.parse(r.value));
 }
 
 export function placeDetails(id) {
@@ -172,7 +234,7 @@ export function placeDetails(id) {
  */
 export async function savedSearchPlace(id) {
   const row = await one(`SELECT value FROM places_cache
-    WHERE key LIKE 'search-v2|%' AND instr(value, ?) > 0 ORDER BY fetched_at DESC LIMIT 1`, [`"id":${JSON.stringify(id)}`]);
+    WHERE (key LIKE 'search-v%' OR key LIKE 'added|%' OR key LIKE 'cand|%') AND instr(value, ?) > 0 ORDER BY fetched_at DESC LIMIT 1`, [`"id":${JSON.stringify(id)}`]);
   if (!row) return null;
   return JSON.parse(row.value).find((e) => e.place?.id === id)?.place || null;
 }
@@ -184,7 +246,7 @@ export async function savedSearchPlace(id) {
  */
 export async function isKnownPhoto(name) {
   const row = await one(`SELECT 1 AS ok FROM places_cache
-    WHERE (key LIKE 'search-v2|%' OR key LIKE 'detail|%') AND instr(value, ?) > 0 LIMIT 1`, [`"name":${JSON.stringify(name)}`]);
+    WHERE (key LIKE 'search-v%' OR key LIKE 'detail|%' OR key LIKE 'added|%') AND instr(value, ?) > 0 LIMIT 1`, [`"name":${JSON.stringify(name)}`]);
   return !!row;
 }
 

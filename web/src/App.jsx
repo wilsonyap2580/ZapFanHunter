@@ -5,6 +5,7 @@ import { useLiveLocation, useSaved } from './useLocation.js';
 import Icon from './Icon.jsx';
 import SpotSheet from './SpotSheet.jsx';
 import SpinWheel from './SpinWheel.jsx';
+import AddShop from './AddShop.jsx';
 
 const KL = { lat: 3.139, lng: 101.687 };
 const QUICK_RADII = [2, 5, 10];
@@ -30,6 +31,9 @@ export default function App() {
   const [radius, setRadius] = useState(5);
   const [area, setArea] = useState('');
   const [openOnly, setOpenOnly] = useState(false);
+  const [dealsOnly, setDealsOnly] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [reload, setReload] = useState(0); // bump to refetch after adding a shop or deal
   const [areas, setAreas] = useState([]);
   const [data, setData] = useState({ spots: [], count: 0 });
   const [loading, setLoading] = useState(true);
@@ -50,12 +54,12 @@ export default function App() {
     api
       .spots(tab === 'saved'
         ? { lat: center.lat, lng: center.lng, ids: savedIds || undefined }
-        : { lat: center.lat, lng: center.lng, radius, q: dq, area, open: openOnly ? 1 : undefined })
+        : { lat: center.lat, lng: center.lng, radius, q: dq, area, open: openOnly ? 1 : undefined, deals: dealsOnly ? 1 : undefined })
       .then((d) => { if (live) { setData(d); setError(''); } })
       .catch((e) => live && setError(e.message))
       .finally(() => live && setLoading(false));
     return () => { live = false; };
-  }, [center.lat, center.lng, radius, dq, area, openOnly, tab, savedIds]);
+  }, [center.lat, center.lng, radius, dq, area, openOnly, dealsOnly, tab, savedIds, reload]);
 
   const list = useMemo(
     () => (tab === 'saved' ? data.spots.filter((s) => saved.includes(s.id)) : data.spots),
@@ -125,6 +129,9 @@ export default function App() {
             <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-5 sm:px-5">
               <button className={`${chip(openOnly)} inline-flex items-center gap-1.5`} onClick={() => setOpenOnly((v) => !v)}>
                 <span className={`size-2 rounded-full ${openOnly ? 'bg-pandan-soft' : 'bg-pandan'}`} />Open now
+              </button>
+              <button className={`${chip(dealsOnly)} inline-flex items-center gap-1.5`} onClick={() => setDealsOnly((v) => !v)} aria-pressed={dealsOnly}>
+                <Icon name="moon" className="size-3.5 text-kunyit" />Night deals
               </button>
               <button className={chip(!area)} onClick={() => setArea('')}>Near {geo.pos ? 'me' : 'KL'}</button>
               {areas.map((a) => (
@@ -199,16 +206,26 @@ export default function App() {
           </nav>
         )}
 
+        {tab === 'search' && !error && !loading && (
+          <p className="mt-6 text-center text-sm text-kopi">
+            Can't find a shop?{' '}
+            <button onClick={() => setAddOpen(true)} className="font-semibold text-sambal underline-offset-2 hover:underline">Add it</button>
+            {list.length > 0 && <> · Know a night discount? Open the shop and add the deal.</>}
+          </p>
+        )}
+
         {!loading && !error && list.length === 0 && (
           <div className="rounded-3xl border-2 border-dashed border-kicap/10 bg-white/60 px-6 py-12 text-center">
             <img src={plateArt(3)} alt="" className="mx-auto size-24 rounded-full opacity-70 grayscale-[.4]" />
             <p className="mt-4 font-display text-xl font-bold">
-              {tab === 'saved' ? 'No saved spots yet' : 'No Chinese mixed rice found'}
+              {tab === 'saved' ? 'No saved spots yet' : dealsOnly ? 'No night deals here yet' : 'No Chinese mixed rice found'}
             </p>
             <p className="mx-auto mt-1 max-w-xs text-sm text-kopi">
               {tab === 'saved'
                 ? 'Tap the heart on any spot to keep it here.'
-                : `No spots ${dq ? `for “${dq}”` : `within ${radius} km`}${openOnly ? ' open right now' : ''}. Try a wider radius or another area.`}
+                : dealsOnly
+                  ? 'Nobody has posted a deal nearby. Know one? Open the shop and add it so others can save too.'
+                  : `No spots ${dq ? `for “${dq}”` : `within ${radius} km`}${openOnly ? ' open right now' : ''}. Try a wider radius or another area, or add the shop.`}
             </p>
           </div>
         )}
@@ -239,7 +256,13 @@ export default function App() {
       )}
 
       {openId !== null && (
-        <SpotSheet id={openId} center={center} live={!!geo.pos} saved={saved.includes(openId)} onToggleSave={() => toggle(openId)} onClose={() => setOpenId(null)} />
+        <SpotSheet id={openId} center={center} live={!!geo.pos} saved={saved.includes(openId)} onToggleSave={() => toggle(openId)}
+          onDealsChanged={() => setReload((n) => n + 1)} onClose={() => setOpenId(null)} />
+      )}
+
+      {addOpen && (
+        <AddShop center={center} initialQuery={dq} onClose={() => setAddOpen(false)}
+          onAdded={(spot) => { setAddOpen(false); setReload((n) => n + 1); setOpenId(spot.id); }} />
       )}
     </div>
   );
@@ -260,6 +283,13 @@ function SpotCard({ s, saved, onSave, onOpen }) {
           <span className={`size-1.5 rounded-full ${open ? 'bg-white' : 'bg-kopi-light'}`} />
           {open ? 'Open now' : 'Closed'}
         </span>
+        {s.deal && (
+          <span title={s.deal.text}
+            className={`absolute left-3 top-11 inline-flex max-w-[75%] items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${s.deal.status.active ? 'bg-kicap text-kunyit' : 'bg-white/90 text-kicap'}`}>
+            <Icon name="moon" className="size-3.5 text-kunyit" />
+            <span className="truncate">{s.deal.status.active ? 'Deal on now' : s.deal.status.text}</span>
+          </span>
+        )}
         <button
           aria-label={saved ? 'Remove from my spots' : 'Save spot'}
           onClick={(e) => { e.stopPropagation(); onSave(); }}

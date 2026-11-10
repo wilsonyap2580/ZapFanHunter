@@ -9,7 +9,10 @@ const btn = 'flex h-12 w-full items-center justify-center gap-2 rounded-2xl px-4
 const btnPrimary = `${btn} bg-sambal text-white shadow-lg shadow-sambal/25 hover:bg-sambal-deep`;
 const btnSoft = `${btn} bg-white text-kicap ring-1 ring-kicap/10 hover:bg-santan-deep`;
 
-export default function SpotSheet({ id, center, live, saved, onToggleSave, onClose }) {
+// Words in reviews that hint at a discount, for nudging diners to post the deal.
+const DISCOUNT_WORDS = /discount|half price|% ?off|cheaper (at|after|in the) (night|evening)|clearance|打折|折扣|半价|特价/i;
+
+export default function SpotSheet({ id, center, live, saved, onToggleSave, onDealsChanged, onClose }) {
   const [spot, setSpot] = useState(null);
   const [error, setError] = useState('');
 
@@ -108,6 +111,9 @@ export default function SpotSheet({ id, center, live, saved, onToggleSave, onClo
                 );
               })}
             </div>
+
+            <SectionTitle icon="moon">Night deals</SectionTitle>
+            <NightDeals spot={spot} onChange={(deals) => { setSpot((s) => ({ ...s, deals })); onDealsChanged?.(); }} />
 
             {spot.googleReviews?.length > 0 && (
               <>
@@ -244,6 +250,141 @@ function SectionTitle({ icon, children }) {
       <span className="grid size-8 place-items-center rounded-full bg-sambal-soft text-sambal"><Icon name={icon} className="size-4" /></span>
       {children}
     </h4>
+  );
+}
+
+const DAY_CHIPS = [['1', 'Mon'], ['2', 'Tue'], ['3', 'Wed'], ['4', 'Thu'], ['5', 'Fri'], ['6', 'Sat'], ['0', 'Sun']];
+
+const daysAgo = (ms) => {
+  const d = Math.floor((Date.now() - ms) / 86400e3);
+  return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`;
+};
+
+// Deals diners have posted for this shop, with "Still on" / "Not anymore" and a form to add one.
+function NightDeals({ spot, onChange }) {
+  const deals = spot.deals || [];
+  const [adding, setAdding] = useState(false);
+  const [voted, setVoted] = useState({}); // deal id -> 'confirm' | 'report'
+  const [msg, setMsg] = useState('');
+  const hint = deals.length === 0
+    && [...(spot.googleReviews || []).map((r) => r.text), ...(spot.reviews || []).map((r) => r.body)].some((t) => DISCOUNT_WORDS.test(t || ''));
+
+  async function vote(d, kind) {
+    setMsg('');
+    try {
+      const r = await api.voteDeal(d.id, kind);
+      setVoted((v) => ({ ...v, [d.id]: kind }));
+      onChange(r.hidden ? deals.filter((x) => x.id !== d.id) : deals.map((x) => (x.id === d.id ? r : x)));
+    } catch (err) { setMsg(err.message); }
+  }
+
+  return (
+    <div className="space-y-2" data-testid="night-deals">
+      {deals.map((d) => (
+        <div key={d.id} className={`rounded-2xl p-4 ring-1 ${d.status.active ? 'bg-kicap text-santan ring-kicap' : 'bg-white ring-kicap/5'}`}>
+          <div className="flex items-start gap-3">
+            <span className={`grid size-9 shrink-0 place-items-center rounded-full ${d.status.active ? 'bg-kunyit text-kicap' : 'bg-kunyit-soft text-kicap'}`}>
+              <Icon name="tag" className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold leading-snug">{d.text}</p>
+              <p className={`mt-0.5 text-sm ${d.status.active ? 'text-santan/80' : 'text-kopi'}`}>{d.when}</p>
+              <p className={`mt-1 text-xs font-semibold ${d.status.active ? 'text-kunyit' : 'text-pandan'}`}>{d.status.text}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className={`mr-auto font-mono text-xs ${d.status.active ? 'text-santan/60' : 'text-kopi-light'}`}>
+              Confirmed {daysAgo(d.lastConfirmedAt)}{d.confirms > 1 ? ` · ${d.confirms}×` : ''}
+            </span>
+            {voted[d.id] ? (
+              <span className="text-xs font-semibold">{voted[d.id] === 'confirm' ? 'Thanks for confirming!' : 'Thanks, noted.'}</span>
+            ) : (
+              <>
+                <button onClick={() => vote(d, 'confirm')}
+                  className={`inline-flex h-8 items-center gap-1 rounded-full px-3 text-xs font-semibold transition ${d.status.active ? 'bg-santan text-kicap hover:bg-white' : 'bg-pandan-soft text-pandan hover:brightness-95'}`}>
+                  <Icon name="check" className="size-3.5" />Still on
+                </button>
+                <button onClick={() => vote(d, 'report')}
+                  className={`h-8 rounded-full px-3 text-xs font-semibold transition ${d.status.active ? 'text-santan/80 ring-1 ring-santan/30 hover:text-santan' : 'text-kopi ring-1 ring-kicap/10 hover:bg-santan-deep'}`}>
+                  Not anymore
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {deals.length === 0 && !adding && (
+        <p className="rounded-2xl bg-white p-4 text-sm text-kopi ring-1 ring-kicap/5">
+          {hint
+            ? <><b className="font-semibold text-kicap">Diners mention discounts in the reviews.</b> Been here at night? Add the deal so others know.</>
+            : 'No night deals posted yet. Many stalls cut prices near closing. Spotted one here?'}
+        </p>
+      )}
+      {msg && <p className="text-sm text-sambal-deep">{msg}</p>}
+
+      {adding
+        ? <DealForm spotId={spot.id} onCancel={() => setAdding(false)} onAdded={(d) => {
+          setAdding(false);
+          // Posting a deal that's already listed counts as confirming it.
+          onChange(d.existing ? deals.map((x) => (x.id === d.id ? d : x)) : [d, ...deals]);
+        }} />
+        : (
+          <button onClick={() => setAdding(true)} className={`${btnSoft} border border-dashed border-kicap/20 ring-0`}>
+            <Icon name="plus" className="size-5" />Add a night deal
+          </button>
+        )}
+    </div>
+  );
+}
+
+function DealForm({ spotId, onAdded, onCancel }) {
+  const [text, setText] = useState('');
+  const [days, setDays] = useState('0123456');
+  const [start, setStart] = useState('20:00');
+  const [end, setEnd] = useState('22:00');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const toggleDay = (d) => setDays((v) => (v.includes(d) ? v.replace(d, '') : v + d));
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg('');
+    try { onAdded(await api.addDeal(spotId, { text, days, start, end })); } catch (err) { setMsg(err.message); } finally { setBusy(false); }
+  }
+
+  const field = 'w-full rounded-xl border border-kicap/10 bg-santan px-3.5 py-2.5 outline-none transition placeholder:text-kopi-light focus:border-sambal/50 focus:bg-white focus:ring-4 focus:ring-sambal/10';
+  return (
+    <form onSubmit={submit} className="grid gap-3 rounded-2xl bg-white p-4 ring-1 ring-kicap/5" data-testid="deal-form">
+      <p className="font-semibold">Add a night deal</p>
+      <input autoFocus value={text} onChange={(e) => setText(e.target.value)} maxLength={120} aria-label="The deal"
+        placeholder="e.g. 30% off all dishes, or RM1 off per plate" className={field} />
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Days">
+        {DAY_CHIPS.map(([d, label]) => (
+          <button type="button" key={d} onClick={() => toggleDay(d)} aria-pressed={days.includes(d)}
+            className={`h-8 rounded-full px-3 text-xs font-semibold transition ${days.includes(d) ? 'bg-kicap text-santan' : 'bg-santan text-kopi ring-1 ring-kicap/10'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="text-xs font-medium text-kopi">From
+          <input type="time" value={start} onChange={(e) => setStart(e.target.value)} required className={`${field} mt-1 font-mono`} />
+        </label>
+        <label className="text-xs font-medium text-kopi">Until
+          <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} required className={`${field} mt-1 font-mono`} />
+        </label>
+      </div>
+      {msg && <small className="text-sambal-deep">{msg}</small>}
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" onClick={onCancel} className={btnSoft}>Cancel</button>
+        <button disabled={busy || text.trim().length < 3 || !days} className={`${btnPrimary} disabled:opacity-45 disabled:shadow-none`}>
+          {busy ? 'Posting…' : 'Post deal'}
+        </button>
+      </div>
+      <small className="text-xs text-kopi-light">Others can confirm it. Deals nobody confirms for 30 days are hidden.</small>
+    </form>
   );
 }
 

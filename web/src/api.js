@@ -5,6 +5,13 @@ async function get(path, params = {}) {
   return res.json();
 }
 
+async function post(path, body = {}) {
+  const res = await fetch(`/api${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
 let healthOnce;
 export const api = {
   /** Server features, fetched once: { live, uploads, ... } */
@@ -12,6 +19,12 @@ export const api = {
   areas: () => get('/areas'),
   spots: (params) => get('/spots', params),
   spot: (id, params) => get(`/spots/${encodeURIComponent(id)}`, params),
+  /** Google eateries matching a shop name, for "Add a missing shop". */
+  candidates: (q, at) => get('/candidates', { q, lat: at.lat, lng: at.lng }),
+  addShop: (placeId, at) => post('/added-places', { placeId, lat: at.lat, lng: at.lng }),
+  /** deal: { text, days: "12345", start: "20:00", end: "22:00" } */
+  addDeal: (id, deal) => post(`/spots/${encodeURIComponent(id)}/deals`, deal),
+  voteDeal: (dealId, kind) => post(`/deals/${dealId}/${kind}`),
   /** review: { author, stars, body, photo?: File } */
   async addReview(id, { photo, ...fields }) {
     const form = new FormData();

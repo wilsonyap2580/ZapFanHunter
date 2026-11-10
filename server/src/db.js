@@ -68,6 +68,44 @@ async function init() {
     // Saved Google results (see places.js) and the daily Google call count.
     'CREATE TABLE IF NOT EXISTS places_cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, fetched_at INTEGER NOT NULL)',
     'CREATE TABLE IF NOT EXISTS api_usage (day TEXT PRIMARY KEY, calls INTEGER NOT NULL DEFAULT 0)',
+    // Shops users added because search missed them. Their Google info is in places_cache as added|<place_id>.
+    `CREATE TABLE IF NOT EXISTS added_places (
+      place_id TEXT PRIMARY KEY,
+      name     TEXT    NOT NULL,
+      lat      REAL    NOT NULL,
+      lng      REAL    NOT NULL,
+      added_at INTEGER NOT NULL,
+      voter    TEXT    NOT NULL
+    )`,
+    // Night deals posted by diners. Times are minutes after midnight, Malaysia time;
+    // end_min <= start_min means the deal runs past midnight. days: digits 0 (Sun) to 6 (Sat).
+    `CREATE TABLE IF NOT EXISTS deals (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      spot_id           INTEGER REFERENCES spots(id) ON DELETE CASCADE,
+      place_id          TEXT,
+      text              TEXT    NOT NULL,
+      days              TEXT    NOT NULL,
+      start_min         INTEGER NOT NULL CHECK (start_min BETWEEN 0 AND 1439),
+      end_min           INTEGER NOT NULL CHECK (end_min BETWEEN 0 AND 1439),
+      created_at        INTEGER NOT NULL,
+      last_confirmed_at INTEGER NOT NULL,
+      confirms          INTEGER NOT NULL DEFAULT 1,
+      reports           INTEGER NOT NULL DEFAULT 0,
+      voter             TEXT    NOT NULL,
+      CHECK (spot_id IS NOT NULL OR place_id IS NOT NULL)
+    )`,
+    'CREATE INDEX IF NOT EXISTS deals_spot ON deals(spot_id)',
+    'CREATE INDEX IF NOT EXISTS deals_place ON deals(place_id)',
+    // One "still on" per person per day, one "not anymore" per person ever (day = '').
+    `CREATE TABLE IF NOT EXISTS deal_votes (
+      deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+      voter   TEXT    NOT NULL,
+      kind    TEXT    NOT NULL,
+      day     TEXT    NOT NULL,
+      PRIMARY KEY (deal_id, voter, kind, day)
+    )`,
+    // Per-person daily limits on adding shops and deals.
+    'CREATE TABLE IF NOT EXISTS rate_limits (key TEXT NOT NULL, day TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (key, day))',
   ], 'write');
 
   const oldColumns = (await all("SELECT name FROM pragma_table_info('reviews')")).map((c) => c.name);
